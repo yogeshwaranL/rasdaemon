@@ -17,6 +17,7 @@
 #include "ras-mce-handler.h"
 #include "ras-report.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 /*
  * The code below were adapted from Andi Kleen/Intel/SUSE mcelog code,
@@ -56,66 +57,94 @@ static char *cputype_name[] = {
 
 static enum cputype select_intel_cputype(struct mce_priv *mce)
 {
+	RAS_TRACE_ENTRY();
 	if (mce->family == 15) {
-		if (mce->model == 6)
+		if (mce->model == 6) {
+			RAS_TRACE_EXIT(CPU_TULSA);
 			return CPU_TULSA;
+		}
+		RAS_TRACE_EXIT(CPU_P4);
 		return CPU_P4;
 	}
 	if (mce->family == 6) {
 		if (mce->model >= 0x1a && mce->model != 28)
 			mce->mc_error_support = 1;
 
-		if (mce->model < 0xf)
+		if (mce->model < 0xf) {
+			RAS_TRACE_EXIT(CPU_P6OLD);
 			return CPU_P6OLD;
-		else if (mce->model == 0xf || mce->model == 0x17) /* Merom/Penryn */
+		} else if (mce->model == 0xf || mce->model == 0x17) { /* Merom/Penryn */
+			RAS_TRACE_EXIT(CPU_CORE2);
 			return CPU_CORE2;
-		else if (mce->model == 0x1d)
+		} else if (mce->model == 0x1d) {
+			RAS_TRACE_EXIT(CPU_DUNNINGTON);
 			return CPU_DUNNINGTON;
-		else if (mce->model == 0x1a || mce->model == 0x2c ||
-			 mce->model == 0x1e || mce->model == 0x25)
+		} else if (mce->model == 0x1a || mce->model == 0x2c ||
+			 mce->model == 0x1e || mce->model == 0x25) {
+			RAS_TRACE_EXIT(CPU_NEHALEM);
 			return CPU_NEHALEM;
-		else if (mce->model == 0x2e || mce->model == 0x2f)
+		} else if (mce->model == 0x2e || mce->model == 0x2f) {
+			RAS_TRACE_EXIT(CPU_XEON75XX);
 			return CPU_XEON75XX;
-		else if (mce->model == 0x2a)
+		} else if (mce->model == 0x2a) {
+			RAS_TRACE_EXIT(CPU_SANDY_BRIDGE);
 			return CPU_SANDY_BRIDGE;
-		else if (mce->model == 0x2d)
+		} else if (mce->model == 0x2d) {
+			RAS_TRACE_EXIT(CPU_SANDY_BRIDGE_EP);
 			return CPU_SANDY_BRIDGE_EP;
-		else if (mce->model == 0x3a)
+		} else if (mce->model == 0x3a) {
+			RAS_TRACE_EXIT(CPU_IVY_BRIDGE);
 			return CPU_IVY_BRIDGE;
-		else if (mce->model == 0x3e)
+		} else if (mce->model == 0x3e) {
+			RAS_TRACE_EXIT(CPU_IVY_BRIDGE_EPEX);
 			return CPU_IVY_BRIDGE_EPEX;
-		else if (mce->model == 0x3c || mce->model == 0x45 ||
-			 mce->model == 0x46)
+		} else if (mce->model == 0x3c || mce->model == 0x45 ||
+			 mce->model == 0x46) {
+			RAS_TRACE_EXIT(CPU_HASWELL);
 			return CPU_HASWELL;
-		else if (mce->model == 0x3f)
+		} else if (mce->model == 0x3f) {
+			RAS_TRACE_EXIT(CPU_HASWELL_EPEX);
 			return CPU_HASWELL_EPEX;
-		else if (mce->model == 0x56)
+		} else if (mce->model == 0x56) {
+			RAS_TRACE_EXIT(CPU_BROADWELL_DE);
 			return CPU_BROADWELL_DE;
-		else if (mce->model == 0x4f)
+		} else if (mce->model == 0x4f) {
+			RAS_TRACE_EXIT(CPU_BROADWELL_EPEX);
 			return CPU_BROADWELL_EPEX;
-		else if (mce->model == 0x3d)
+		} else if (mce->model == 0x3d) {
+			RAS_TRACE_EXIT(CPU_BROADWELL);
 			return CPU_BROADWELL;
-		else if (mce->model == 0x57)
+		} else if (mce->model == 0x57) {
+			RAS_TRACE_EXIT(CPU_KNIGHTS_LANDING);
 			return CPU_KNIGHTS_LANDING;
-		else if (mce->model == 0x85)
+		} else if (mce->model == 0x85) {
+			RAS_TRACE_EXIT(CPU_KNIGHTS_MILL);
 			return CPU_KNIGHTS_MILL;
-		else if (mce->model == 0x55)
+		} else if (mce->model == 0x55) {
+			RAS_TRACE_EXIT(CPU_SKYLAKE_XEON);
 			return CPU_SKYLAKE_XEON;
-		else if (mce->model == 0x6a)
+		} else if (mce->model == 0x6a) {
+			RAS_TRACE_EXIT(CPU_ICELAKE_XEON);
 			return CPU_ICELAKE_XEON;
-		else if (mce->model == 0x6c)
+		} else if (mce->model == 0x6c) {
+			RAS_TRACE_EXIT(CPU_ICELAKE_DE);
 			return CPU_ICELAKE_DE;
-		else if (mce->model == 0x86)
+		} else if (mce->model == 0x86) {
+			RAS_TRACE_EXIT(CPU_TREMONT_D);
 			return CPU_TREMONT_D;
-		else if (mce->model == 0x8f)
+		} else if (mce->model == 0x8f) {
+			RAS_TRACE_EXIT(CPU_SAPPHIRERAPIDS);
 			return CPU_SAPPHIRERAPIDS;
-		else if (mce->model == 0xcf)
+		} else if (mce->model == 0xcf) {
+			RAS_TRACE_EXIT(CPU_EMERALDRAPIDS);
 			return CPU_EMERALDRAPIDS;
+		}
 
 		if (mce->model > 0x1a) {
 			log(ALL, LOG_INFO,
 			    "Family 6 Model %x CPU: only decoding architectural errors\n",
 			    mce->model);
+			RAS_TRACE_EXIT(CPU_INTEL);
 			return CPU_INTEL;
 		}
 	}
@@ -123,11 +152,13 @@ static enum cputype select_intel_cputype(struct mce_priv *mce)
 		log(ALL, LOG_INFO,
 		    "Family %u Model %x CPU: only decoding architectural errors\n",
 		    mce->family, mce->model);
+		RAS_TRACE_EXIT(CPU_INTEL);
 		return CPU_INTEL;
 	}
 	log(ALL, LOG_INFO,
 	    "Unknown Intel CPU type Family %x Model %x\n",
 	    mce->family, mce->model);
+	RAS_TRACE_EXIT(mce->family == 6 ? CPU_P6OLD : CPU_GENERIC);
 	return mce->family == 6 ? CPU_P6OLD : CPU_GENERIC;
 }
 
@@ -146,6 +177,7 @@ static int detect_cpu(struct mce_priv *mce)
 		CPU_ALL = 0x1f
 	} seen = 0;
 
+	RAS_TRACE_ENTRY();
 	mce->family = 0;
 	mce->model = 0;
 	mce->mhz = 0;
@@ -154,6 +186,7 @@ static int detect_cpu(struct mce_priv *mce)
 	f = fopen("/proc/cpuinfo", "r");
 	if (!f) {
 		log(ALL, LOG_INFO, "Can't open /proc/cpuinfo\n");
+		RAS_TRACE_EXIT(-errno);
 		return -errno;
 	}
 
@@ -225,6 +258,7 @@ ret:
 	fclose(f);
 	free(line);
 
+	RAS_TRACE_EXIT(ret);
 	return ret;
 }
 
@@ -233,9 +267,11 @@ int init_mce_priv(struct ras_events *ras)
 	int rc;
 	struct mce_priv *mce;
 
+	RAS_TRACE_ENTRY();
 	ras->mce_priv = calloc(1, sizeof(struct mce_priv));
 	if (!ras->mce_priv) {
 		log(ALL, LOG_INFO, "Can't allocate memory MCE data\n");
+		RAS_TRACE_EXIT(-ENOMEM);
 		return -ENOMEM;
 	}
 
@@ -247,14 +283,17 @@ int init_mce_priv(struct ras_events *ras)
 			free(mce->processor_flags);
 		free(ras->mce_priv);
 		ras->mce_priv = NULL;
+		RAS_TRACE_EXIT(rc);
 		return rc;
 	}
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
 static void set_imc_log(struct mce_priv *mce, unsigned int ncpus)
 {
+	RAS_TRACE_ENTRY();
 	switch (mce->cputype) {
 	case CPU_SANDY_BRIDGE_EP:
 	case CPU_IVY_BRIDGE_EPEX:
@@ -265,18 +304,23 @@ static void set_imc_log(struct mce_priv *mce, unsigned int ncpus)
 	default:
 		break;
 	}
+	RAS_TRACE_EXIT(0);
 }
 
 int register_mce_handler(struct ras_events *ras, unsigned int ncpus)
 {
 	int rc;
 
+	RAS_TRACE_ENTRY();
 	rc = init_mce_priv(ras);
-	if (rc)
+	if (rc) {
+		RAS_TRACE_EXIT(rc);
 		return rc;
+	}
 
 	set_imc_log(ras->mce_priv, ncpus);
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -292,6 +336,7 @@ void report_mce_event(struct ras_events *ras, struct tep_record *record,
 	struct mce_priv *mce = ras->mce_priv;
 	const char *level;
 
+	RAS_TRACE_ENTRY();
 	if (e->status & MCI_STATUS_UC)
 		level = loglevel_str[LOGLEVEL_CRIT];
 	else if (e->status & MCI_STATUS_DEFERRED)
@@ -384,8 +429,10 @@ void report_mce_event(struct ras_events *ras, struct tep_record *record,
 	if (e->microcode)
 		trace_seq_printf(s, ", microcode= %x", e->microcode);
 
-	if (!e->vdata_len)
+	if (!e->vdata_len) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 
 	if (strlen(e->frutext))
 		trace_seq_printf(s, ", FRU Text= %s", e->frutext);
@@ -399,6 +446,7 @@ void report_mce_event(struct ras_events *ras, struct tep_record *record,
 	 * As, in thesis, we shouldn't be receiving memory error reports via
 	 * MCE, as they should go via EDAC traces, let's not do it.
 	 */
+	RAS_TRACE_EXIT(0);
 }
 
 static int report_mce_offline(struct trace_seq *s,
@@ -408,6 +456,7 @@ static int report_mce_offline(struct trace_seq *s,
 	time_t now;
 	struct tm *tm;
 
+	RAS_TRACE_ENTRY();
 	time(&now);
 	tm = localtime(&now);
 
@@ -433,6 +482,7 @@ static int report_mce_offline(struct trace_seq *s,
 	if (*mce->error_msg)
 		trace_seq_printf(s, " Error Msg: %s\n", mce->error_msg);
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -443,9 +493,11 @@ int ras_offline_mce_event(struct ras_mc_offline_event *event)
 	struct mce_event *mce = NULL;
 	struct mce_priv *priv = NULL;
 
+	RAS_TRACE_ENTRY();
 	mce = (struct mce_event *)calloc(1, sizeof(struct mce_event));
 	if (!mce) {
 		log(TERM, LOG_ERR, "Can't allocate memory for mce struct\n");
+		RAS_TRACE_EXIT(errno);
 		return errno;
 	}
 
@@ -453,6 +505,7 @@ int ras_offline_mce_event(struct ras_mc_offline_event *event)
 	if (!priv) {
 		log(TERM, LOG_ERR, "Can't allocate memory for mce_priv struct\n");
 		free(mce);
+		RAS_TRACE_EXIT(errno);
 		return errno;
 	}
 
@@ -497,6 +550,7 @@ int ras_offline_mce_event(struct ras_mc_offline_event *event)
 free_mce:
 	free(priv);
 	free(mce);
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -510,60 +564,95 @@ int ras_mce_event_handler(struct trace_seq *s,
 	struct mce_event e;
 	int rc = 0;
 
+	RAS_TRACE_ENTRY();
 	memset(&e, 0, sizeof(e));
 
 	/* Parse the MCE error data */
-	if (tep_get_field_val(s, event, "mcgcap", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "mcgcap", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.mcgcap = val;
-	if (tep_get_field_val(s, event, "mcgstatus", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "mcgstatus", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.mcgstatus = val;
-	if (tep_get_field_val(s, event, "status", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "status", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.status = val;
-	if (tep_get_field_val(s, event, "addr", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "addr", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.addr = val;
-	if (tep_get_field_val(s, event, "misc", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "misc", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.misc = val;
-	if (tep_get_field_val(s, event, "ip", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "ip", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.ip = val;
-	if (tep_get_field_val(s, event, "tsc", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "tsc", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.tsc = val;
-	if (tep_get_field_val(s, event, "walltime", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "walltime", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.walltime = val;
-	if (tep_get_field_val(s, event, "cpu", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "cpu", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.cpu = val;
-	if (tep_get_field_val(s, event, "cpuid", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "cpuid", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.cpuid = val;
-	if (tep_get_field_val(s, event, "apicid", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "apicid", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.apicid = val;
-	if (tep_get_field_val(s, event, "socketid", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "socketid", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.socketid = val;
-	if (tep_get_field_val(s, event, "cs", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "cs", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.cs = val;
-	if (tep_get_field_val(s, event, "bank", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "bank", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.bank = val;
-	if (tep_get_field_val(s, event, "cpuvendor", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "cpuvendor", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.cpuvendor = val;
 	/* Get New entries */
-	if (tep_get_field_val(s, event, "synd", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "synd", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.synd = val;
-	if (tep_get_field_val(s, event, "ipid", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "ipid", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	e.ipid = val;
 
 	/* Get PPIN */
@@ -591,8 +680,10 @@ int ras_mce_event_handler(struct trace_seq *s,
 		rc = parse_intel_event(ras, &e);
 	}
 
-	if (rc)
+	if (rc) {
+		RAS_TRACE_EXIT(rc);
 		return rc;
+	}
 
 	if (!*e.error_msg && *e.mcastatus_msg)
 		mce_snprintf(e.error_msg, "%s", e.mcastatus_msg);
@@ -608,5 +699,6 @@ int ras_mce_event_handler(struct trace_seq *s,
 	ras_report_mce_event(ras, &e);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

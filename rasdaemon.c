@@ -17,6 +17,7 @@
 #include "ras-record.h"
 #include "ras-mc-handler.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 /*
  * Arguments(argp) handling logic and main
@@ -56,6 +57,7 @@ static error_t parse_opt(int k, char *arg, struct argp_state *state)
 {
 	struct arguments *args = state->input;
 
+	RAS_TRACE_ENTRY();
 	switch (k) {
 	case 'e':
 		args->enable_ras++;
@@ -84,8 +86,10 @@ static error_t parse_opt(int k, char *arg, struct argp_state *state)
 		break;
 #endif
 	default:
+		RAS_TRACE_EXIT(ARGP_ERR_UNKNOWN);
 		return ARGP_ERR_UNKNOWN;
 	}
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -93,6 +97,7 @@ static error_t parse_opt(int k, char *arg, struct argp_state *state)
 static error_t parse_opt_offline(int key, char *arg,
 				 struct argp_state *state)
 {
+	RAS_TRACE_ENTRY();
 	switch (key) {
 	case SMCA:
 		event.smca = true;
@@ -116,8 +121,10 @@ static error_t parse_opt_offline(int key, char *arg,
 		event.synd = strtoull(arg, NULL, 0);
 		break;
 	default:
+		RAS_TRACE_EXIT(ARGP_ERR_UNKNOWN);
 		return ARGP_ERR_UNKNOWN;
 	}
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 #endif
@@ -129,6 +136,7 @@ int main(int argc, char *argv[])
 	struct arguments args;
 	int idx = -1;
 
+	RAS_TRACE_ENTRY();
 	choices_disable = getenv(DISABLE);
 
 	if (getenv(MC_CE_STAT_THRESHOLD))
@@ -202,6 +210,7 @@ int main(int argc, char *argv[])
 
 	if (idx < 0) {
 		argp_help(&argp, stderr, ARGP_HELP_STD_HELP, TOOL_NAME);
+		RAS_TRACE_EXIT(-1);
 		return -1;
 	}
 
@@ -211,12 +220,14 @@ int main(int argc, char *argv[])
 		enable = (args.enable_ras > 0) ? 1 : 0;
 		toggle_ras_mc_event(enable);
 
+		RAS_TRACE_EXIT(0);
 		return 0;
 	}
 
 #ifdef HAVE_MCE
 	if (args.offline) {
 		ras_offline_mce_event(&event);
+		RAS_TRACE_EXIT(0);
 		return 0;
 	}
 #endif
@@ -238,5 +249,6 @@ int main(int argc, char *argv[])
 
 	handle_ras_events(args.record_events, args.enable_ipmitool);
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

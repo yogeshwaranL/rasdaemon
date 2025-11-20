@@ -17,9 +17,11 @@
 #include "ras-logger.h"
 #include "ras-report.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 static char *err_type(int etype)
 {
+	RAS_TRACE_ENTRY();
 	switch (etype) {
 	case 0: return "unknown";
 	case 1: return "no error";
@@ -36,26 +38,33 @@ static char *err_type(int etype)
 	case 12: return "memory sparing";
 	case 13: return "scrub corrected error";
 	case 14: return "scrub uncorrected error";
-	case 15: return "physical memory map-out event";
+	case 15: RAS_TRACE_EXIT(0); return "physical memory map-out event";
 	}
+	RAS_TRACE_EXIT(0);
 	return "unknown-type";
 }
 
 static char *err_severity(int severity)
 {
+	RAS_TRACE_ENTRY();
 	switch (severity) {
-	case 0: return "recoverable";
-	case 1: return "fatal";
-	case 2: return "corrected";
-	case 3: return "informational";
+	case 0: RAS_TRACE_EXIT(0); return "recoverable";
+	case 1: RAS_TRACE_EXIT(0); return "fatal";
+	case 2: RAS_TRACE_EXIT(0); return "corrected";
+	case 3: RAS_TRACE_EXIT(0); return "informational";
 	}
+	RAS_TRACE_EXIT(0);
 	return "unknown-severity";
 }
 
 static unsigned long long err_mask(int lsb)
 {
-	if (lsb == 0xff)
+	RAS_TRACE_ENTRY();
+	if (lsb == 0xff) {
+		RAS_TRACE_EXIT(0);
 		return ~0ull;
+	}
+	RAS_TRACE_EXIT(0);
 	return ~((1ull << lsb) - 1);
 }
 
@@ -99,8 +108,11 @@ static char *err_cper_data(const char *c)
 	unsigned int rc, size = sizeof(buf);
 	char *p = buf;
 
-	if (cpd->validation_bits == 0)
+	RAS_TRACE_ENTRY();
+	if (cpd->validation_bits == 0) {
+		RAS_TRACE_EXIT(0);
 		return "";
+	}
 	rc = snprintf(p, size, " (");
 	p += rc;
 	size -= rc;
@@ -176,6 +188,7 @@ static char *err_cper_data(const char *c)
 	}
 	rc = snprintf(p - 1, size, ")");
 
+	RAS_TRACE_EXIT(0);
 	return buf;
 }
 
@@ -186,6 +199,7 @@ static char *uuid_le(const char *uu)
 	int i;
 	static const unsigned char le[16] = {3, 2, 1, 0, 5, 4, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15};
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < 16; i++) {
 		p += snprintf(p, sizeof(uuid), "%.2x", (unsigned char)uu[le[i]]);
 		switch (i) {
@@ -200,6 +214,7 @@ static char *uuid_le(const char *uu)
 
 	*p = 0;
 
+	RAS_TRACE_EXIT(0);
 	return uuid;
 }
 
@@ -210,6 +225,7 @@ static void report_extlog_mem_event(struct ras_events *ras,
 {
 	const char *level;
 
+	RAS_TRACE_ENTRY();
 	switch (ev->severity) {
 	case 0:
 		level = loglevel_str[LOGLEVEL_CRIT];
@@ -235,6 +251,7 @@ static void report_extlog_mem_event(struct ras_events *ras,
 		err_cper_data(ev->cper_data),
 		ev->fru_text,
 		uuid_le(ev->fru_id));
+	RAS_TRACE_EXIT(0);
 }
 
 int ras_extlog_mem_event_handler(struct trace_seq *s,
@@ -248,6 +265,7 @@ int ras_extlog_mem_event_handler(struct trace_seq *s,
 	struct tm *tm;
 	struct ras_extlog_event ev;
 
+	RAS_TRACE_ENTRY();
 	/*
 	 * Newer kernels (3.10-rc1 or upper) provide an uptime clock.
 	 * On previous kernels, the way to properly generate an event would
@@ -268,20 +286,30 @@ int ras_extlog_mem_event_handler(struct trace_seq *s,
 			 "%Y-%m-%d %H:%M:%S %z", tm);
 	trace_seq_printf(s, "%s ", ev.timestamp);
 
-	if (tep_get_field_val(s,  event, "etype", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "etype", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.etype = val;
-	if (tep_get_field_val(s,  event, "err_seq", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "err_seq", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.error_seq = val;
-	if (tep_get_field_val(s,  event, "sev", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "sev", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.severity = val;
-	if (tep_get_field_val(s,  event, "pa", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "pa", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.address = val;
-	if (tep_get_field_val(s,  event, "pa_mask_lsb", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "pa_mask_lsb", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.pa_mask_lsb = val;
 
 	ev.cper_data = tep_get_field_raw(s, event, "data",
@@ -296,5 +324,6 @@ int ras_extlog_mem_event_handler(struct trace_seq *s,
 
 	ras_store_extlog_mem_record(ras, &ev);
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

@@ -51,7 +51,7 @@ all-local: $(SYSTEMD_SERVICES) $(SYSLOG_SERVICES) $(RSYSLOG_SERVICES) $(LOGROTAT
 
 sbin_PROGRAMS = rasdaemon
 rasdaemon_SOURCES = rasdaemon.c ras-events.c ras-mc-handler.c \
-		    bitfield.c trigger.c types.c
+		    bitfield.c trigger.c types.c ras-daemon-trace.c
 if WITH_SQLITE3
    rasdaemon_SOURCES += ras-record.c
 endif
@@ -134,7 +134,7 @@ include_HEADERS = config.h types.h ras-events.h ras-logger.h ras-mc-handler.h \
 		  non-standard-hisilicon.h non-standard-ampere.h ras-memory-failure-handler.h \
 		  ras-cxl-handler.h ras-cpu-isolation.h queue.h non-standard-yitian.h \
 		  non-standard-jaguarmicro.h trigger.h unified-sel.h ras-signal-handler.h \
-		  ras-poison-page-stat.h ras-erst.h
+		  ras-poison-page-stat.h ras-erst.h ras-daemon-trace.h
 
 # This rule can't be called with more than one Makefile job (like make -j8)
 # I can't figure out a way to fix that

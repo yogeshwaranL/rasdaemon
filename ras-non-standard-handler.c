@@ -15,14 +15,17 @@
 #include "ras-non-standard-handler.h"
 #include "ras-report.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 static struct  ras_ns_ev_decoder *ras_ns_ev_dec_list;
 
 void print_le_hex(struct trace_seq *s, const uint8_t *buf, int index)
 {
+	RAS_TRACE_ENTRY();
 	trace_seq_printf(s, "%02x%02x%02x%02x",
 			 buf[index + 3], buf[index + 2],
 			 buf[index + 1], buf[index]);
+	RAS_TRACE_EXIT(0);
 }
 
 static char *uuid_le(const char *uu)
@@ -32,6 +35,7 @@ static char *uuid_le(const char *uu)
 	int i;
 	static const unsigned char le[16] = {3, 2, 1, 0, 5, 4, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15};
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < 16; i++) {
 		p += snprintf(p, sizeof(uuid), "%.2x", (unsigned char)uu[le[i]]);
 		switch (i) {
@@ -46,6 +50,7 @@ static char *uuid_le(const char *uu)
 
 	*p = 0;
 
+	RAS_TRACE_EXIT(0);
 	return uuid;
 }
 
@@ -53,8 +58,11 @@ int register_ns_ev_decoder(struct ras_ns_ev_decoder *ns_ev_decoder)
 {
 	struct ras_ns_ev_decoder *list;
 
-	if (!ns_ev_decoder)
+	RAS_TRACE_ENTRY();
+	if (!ns_ev_decoder) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ns_ev_decoder->next = NULL;
 #ifdef HAVE_SQLITE3
@@ -70,6 +78,7 @@ int register_ns_ev_decoder(struct ras_ns_ev_decoder *ns_ev_decoder)
 		list->next = ns_ev_decoder;
 	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -78,9 +87,12 @@ int ras_ns_add_vendor_tables(struct ras_events *ras)
 	struct ras_ns_ev_decoder *ns_ev_decoder;
 	int error = 0;
 
+	RAS_TRACE_ENTRY();
 #ifdef HAVE_SQLITE3
-	if (!ras)
+	if (!ras) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ns_ev_decoder = ras_ns_ev_dec_list;
 	if (ras_ns_ev_dec_list)
@@ -94,10 +106,13 @@ int ras_ns_add_vendor_tables(struct ras_events *ras)
 		ns_ev_decoder = ns_ev_decoder->next;
 	}
 
-	if (error)
+	if (error) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -106,6 +121,7 @@ static int find_ns_ev_decoder(const char *sec_type, struct ras_ns_ev_decoder **p
 	struct ras_ns_ev_decoder *ns_ev_decoder;
 	int match = 0;
 
+	RAS_TRACE_ENTRY();
 	ns_ev_decoder = ras_ns_ev_dec_list;
 	while (ns_ev_decoder) {
 		if (strcmp(uuid_le(sec_type), ns_ev_decoder->sec_type) == 0) {
@@ -116,9 +132,12 @@ static int find_ns_ev_decoder(const char *sec_type, struct ras_ns_ev_decoder **p
 		ns_ev_decoder = ns_ev_decoder->next;
 	}
 
-	if (!match)
+	if (!match) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -127,15 +146,22 @@ void ras_ns_finalize_vendor_tables(void)
 #ifdef HAVE_SQLITE3
 	struct ras_ns_ev_decoder *ns_ev_decoder = ras_ns_ev_dec_list;
 
-	if (!ras_ns_ev_dec_list)
+	RAS_TRACE_ENTRY();
+	if (!ras_ns_ev_dec_list) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 
 	if (ras_ns_ev_dec_list->ref_count > 0)
 		ras_ns_ev_dec_list->ref_count--;
-	else
+	else {
+		RAS_TRACE_EXIT(0);
 		return;
-	if (ras_ns_ev_dec_list->ref_count > 0)
+	}
+	if (ras_ns_ev_dec_list->ref_count > 0) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 
 	while (ns_ev_decoder) {
 		if (ns_ev_decoder->stmt_dec_record) {
@@ -144,18 +170,23 @@ void ras_ns_finalize_vendor_tables(void)
 		}
 		ns_ev_decoder = ns_ev_decoder->next;
 	}
+	RAS_TRACE_EXIT(0);
 #endif
 }
 
 static void unregister_ns_ev_decoder(void)
 {
+	RAS_TRACE_ENTRY();
 #ifdef HAVE_SQLITE3
-	if (!ras_ns_ev_dec_list)
+	if (!ras_ns_ev_dec_list) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 	ras_ns_ev_dec_list->ref_count = 1;
 	ras_ns_finalize_vendor_tables();
 #endif
 	ras_ns_ev_dec_list = NULL;
+	RAS_TRACE_EXIT(0);
 }
 
 int ras_non_standard_event_handler(struct trace_seq *s,
@@ -170,6 +201,7 @@ int ras_non_standard_event_handler(struct trace_seq *s,
 	struct ras_non_standard_event ev;
 	struct ras_ns_ev_decoder *ns_ev_decoder;
 
+	RAS_TRACE_ENTRY();
 	/*
 	 * Newer kernels (3.10-rc1 or upper) provide an uptime clock.
 	 * On previous kernels, the way to properly generate an event would
@@ -190,8 +222,10 @@ int ras_non_standard_event_handler(struct trace_seq *s,
 			 "%Y-%m-%d %H:%M:%S %z", tm);
 	trace_seq_printf(s, "%s ", ev.timestamp);
 
-	if (tep_get_field_val(s, event, "sev", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "sev", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	switch (val) {
 	case GHES_SEV_NO:
 		ev.severity = "Informational";
@@ -210,8 +244,10 @@ int ras_non_standard_event_handler(struct trace_seq *s,
 
 	ev.sec_type = tep_get_field_raw(s, event, "sec_type",
 					record, &len, 1);
-	if (!ev.sec_type)
+	if (!ev.sec_type) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (strcmp(uuid_le(ev.sec_type),
 		   "e8ed898d-df16-43cc-8ecc-54f060ef157f") == 0)
 		trace_seq_printf(s, " section type: %s",
@@ -226,14 +262,18 @@ int ras_non_standard_event_handler(struct trace_seq *s,
 	trace_seq_printf(s, " fru text: %s fru id: %s ",
 			 ev.fru_text, uuid_le(ev.fru_id));
 
-	if (tep_get_field_val(s, event, "len", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "len", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.length = val;
 	trace_seq_printf(s, " length: %d", ev.length);
 
 	ev.error = tep_get_field_raw(s, event, "buf", record, &len, 1);
-	if (!ev.error)
+	if (!ev.error) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	if (!find_ns_ev_decoder(ev.sec_type, &ns_ev_decoder)) {
 		ns_ev_decoder->decode(ras, ns_ev_decoder, s, &ev);
@@ -265,11 +305,14 @@ int ras_non_standard_event_handler(struct trace_seq *s,
 	ras_report_non_standard_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
 __attribute__((destructor))
 static void ns_exit(void)
 {
+	RAS_TRACE_ENTRY();
 	unregister_ns_ev_decoder();
+	RAS_TRACE_EXIT(0);
 }

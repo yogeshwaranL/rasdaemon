@@ -8,17 +8,20 @@
 
 #include "ras-logger.h"
 #include "trigger.h"
+#include "ras-daemon-trace.h"
 
 void run_trigger(const char *trigger, char *argv[], char **env, const char *reporter)
 {
 	pid_t child;
 	int status;
 
+	RAS_TRACE_ENTRY();
 	log(SYSLOG, LOG_INFO, "Running trigger `%s' (reporter: %s)\n", trigger, reporter);
 
 	child = fork();
 	if (child < 0) {
 		log(SYSLOG, LOG_ERR, "Cannot create process for trigger");
+		RAS_TRACE_EXIT(0);
 		return;
 	}
 
@@ -35,6 +38,7 @@ void run_trigger(const char *trigger, char *argv[], char **env, const char *repo
 			    trigger, WTERMSIG(status));
 		}
 	}
+	RAS_TRACE_EXIT(0);
 }
 
 const char *trigger_check(const char *s)
@@ -43,16 +47,22 @@ const char *trigger_check(const char *s)
 	int rc;
 	char *trigger_dir = getenv("TRIGGER_DIR");
 
+	RAS_TRACE_ENTRY();
 	if (trigger_dir) {
-		if (asprintf(&name, "%s/%s", trigger_dir, s) < 0)
+		if (asprintf(&name, "%s/%s", trigger_dir, s) < 0) {
+			RAS_TRACE_EXIT(0);
 			return NULL;
+		}
 		s = name;
 	}
 
 	rc = access(s, R_OK | X_OK);
 
-	if (!rc)
+	if (!rc) {
+		RAS_TRACE_EXIT(0);
 		return(s);
+	}
 
+	RAS_TRACE_EXIT(0);
 	return NULL;
 }

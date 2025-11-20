@@ -15,6 +15,7 @@
 #include "ras-logger.h"
 #include "ras-report.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 int ras_net_xmit_timeout_handler(struct trace_seq *s,
 				 struct tep_record *record,
@@ -27,6 +28,7 @@ int ras_net_xmit_timeout_handler(struct trace_seq *s,
 	struct tm *tm;
 	struct devlink_event ev;
 
+	RAS_TRACE_ENTRY();
 	if (ras->use_uptime)
 		now = record->ts / user_hz + ras->uptime_diff;
 	else
@@ -43,18 +45,26 @@ int ras_net_xmit_timeout_handler(struct trace_seq *s,
 
 	ev.dev_name = tep_get_field_raw(s, event, "name",
 					record, &len, 1);
-	if (!ev.dev_name)
+	if (!ev.dev_name) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.driver_name = tep_get_field_raw(s, event, "driver",
 					   record, &len, 1);
-	if (!ev.driver_name)
+	if (!ev.driver_name) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "queue_index", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "queue_index", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (asprintf(&ev.msg, "TX timeout on queue: %d\n", (int)val) < 0)
+	}
+	if (asprintf(&ev.msg, "TX timeout on queue: %d\n", (int)val) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	/* Insert data into the SGBD */
 #ifdef HAVE_SQLITE3
@@ -67,6 +77,7 @@ int ras_net_xmit_timeout_handler(struct trace_seq *s,
 #endif
 
 	free(ev.msg);
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -80,9 +91,12 @@ int ras_devlink_event_handler(struct trace_seq *s,
 	struct tm *tm;
 	struct devlink_event ev;
 
+	RAS_TRACE_ENTRY();
 	if (ras->filters[DEVLINK_EVENT] &&
-	    tep_filter_match(ras->filters[DEVLINK_EVENT], record) == FILTER_MATCH)
+	    tep_filter_match(ras->filters[DEVLINK_EVENT], record) == FILTER_MATCH) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
 	/*
@@ -107,27 +121,37 @@ int ras_devlink_event_handler(struct trace_seq *s,
 
 	ev.bus_name = tep_get_field_raw(s, event, "bus_name",
 					record, &len, 1);
-	if (!ev.bus_name)
+	if (!ev.bus_name) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.dev_name = tep_get_field_raw(s, event, "dev_name",
 					record, &len, 1);
-	if (!ev.dev_name)
+	if (!ev.dev_name) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.driver_name = tep_get_field_raw(s, event, "driver_name",
 					   record, &len, 1);
-	if (!ev.driver_name)
+	if (!ev.driver_name) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.reporter_name = tep_get_field_raw(s, event, "reporter_name",
 					     record, &len, 1);
-	if (!ev.reporter_name)
+	if (!ev.reporter_name) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.msg = tep_get_field_raw(s, event, "msg", record, &len, 1);
-	if (!ev.msg)
+	if (!ev.msg) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	/* Insert data into the SGBD */
 #ifdef HAVE_SQLITE3
@@ -139,5 +163,6 @@ int ras_devlink_event_handler(struct trace_seq *s,
 	ras_report_devlink_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

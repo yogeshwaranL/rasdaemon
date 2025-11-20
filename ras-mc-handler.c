@@ -19,6 +19,7 @@
 #include "ras-report.h"
 #include "trigger.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 #define MAX_ENV 30
 static const char *mc_ce_trigger = NULL;
@@ -27,6 +28,8 @@ static const char *mc_ue_trigger = NULL;
 void mc_event_trigger_setup(void)
 {
 	const char *trigger;
+
+	RAS_TRACE_ENTRY();
 
 	trigger = getenv("MC_CE_TRIGGER");
 	if (trigger && strcmp(trigger, "")) {
@@ -57,6 +60,8 @@ void mc_event_trigger_setup(void)
 			    trigger);
 		}
 	}
+
+	RAS_TRACE_EXIT(0);
 }
 
 static void run_mc_trigger(struct ras_mc_event *ev, const char *mc_trigger)
@@ -64,6 +69,8 @@ static void run_mc_trigger(struct ras_mc_event *ev, const char *mc_trigger)
 	char *env[MAX_ENV];
 	int ei = 0;
 	int i;
+
+	RAS_TRACE_ENTRY();
 
 	if (asprintf(&env[ei++], "PATH=%s", getenv("PATH") ?: "/sbin:/usr/sbin:/bin:/usr/bin") < 0)
 		goto free;
@@ -101,6 +108,8 @@ static void run_mc_trigger(struct ras_mc_event *ev, const char *mc_trigger)
 free:
 	for (i = 0; i < ei; i++)
 		free(env[i]);
+
+	RAS_TRACE_EXIT(0);
 }
 
 static unsigned long long per_sec_ce_count;
@@ -108,8 +117,12 @@ unsigned long long mc_ce_stat_threshold;
 static time_t cur;
 static int ras_mc_event_stat(time_t now, struct ras_mc_event *e)
 {
-	if (strcmp(e->error_type, "Corrected"))
+	RAS_TRACE_ENTRY();
+
+	if (strcmp(e->error_type, "Corrected")) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 
 	if (cur == now) {
 		per_sec_ce_count += e->error_count;
@@ -121,6 +134,7 @@ static int ras_mc_event_stat(time_t now, struct ras_mc_event *e)
 	if (per_sec_ce_count > mc_ce_stat_threshold)
 		log(ALL, LOG_ERR, "    mc_event_stat: memory corrected error report %lld/sec\n", per_sec_ce_count);
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -136,6 +150,8 @@ int ras_mc_event_handler(struct trace_seq *s,
 	struct ras_mc_event ev;
 	int parsed_fields = 0;
 	const char *level;
+
+	RAS_TRACE_ENTRY();
 
 	if (tep_get_field_val(s, event, "error_type", record, &val, 1) < 0)
 		goto parse_error;
@@ -336,6 +352,7 @@ int ras_mc_event_handler(struct trace_seq *s,
 	if (mc_ue_trigger && !strcmp(ev.error_type, "Uncorrected"))
 		run_mc_trigger(&ev, mc_ue_trigger);
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 
 parse_error:
@@ -344,5 +361,6 @@ parse_error:
 	log(ALL, LOG_ERR, "MC error handler: can't parse field #%d\n",
 	    parsed_fields);
 
+	RAS_TRACE_EXIT(-1);
 	return 0;
 }

@@ -16,6 +16,7 @@
 #include "ras-report.h"
 #include "trigger.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 /* Memory failure - various types of pages */
 enum mf_action_page_type {
@@ -94,6 +95,7 @@ void mem_fail_event_trigger_setup(void)
 {
 	const char *trigger;
 
+	RAS_TRACE_ENTRY();
 	trigger = getenv("MEM_FAIL_TRIGGER");
 	if (trigger && strcmp(trigger, "")) {
 		mf_trigger = trigger_check(trigger);
@@ -108,6 +110,7 @@ void mem_fail_event_trigger_setup(void)
 			    trigger);
 		}
 	}
+	RAS_TRACE_EXIT(0);
 }
 
 static void run_mf_trigger(struct ras_mf_event *ev)
@@ -116,8 +119,11 @@ static void run_mf_trigger(struct ras_mf_event *ev)
 	int ei = 0;
 	int i;
 
-	if (!mf_trigger)
+	RAS_TRACE_ENTRY();
+	if (!mf_trigger) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 
 	if (asprintf(&env[ei++], "PATH=%s", getenv("PATH") ?: "/sbin:/usr/sbin:/bin:/usr/bin") < 0)
 		goto free;
@@ -138,16 +144,21 @@ static void run_mf_trigger(struct ras_mf_event *ev)
 free:
 	for (i = 0; i < ei; i++)
 		free(env[i]);
+	RAS_TRACE_EXIT(0);
 }
 
 static const char *get_page_type(int page_type)
 {
 	unsigned int i;
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < ARRAY_SIZE(mf_page_type); i++)
-		if (mf_page_type[i].type == page_type)
+		if (mf_page_type[i].type == page_type) {
+			RAS_TRACE_EXIT(0);
 			return mf_page_type[i].page_type;
+		}
 
+	RAS_TRACE_EXIT(0);
 	return "unknown page";
 }
 
@@ -155,10 +166,14 @@ static const char *get_action_result(int result)
 {
 	unsigned int i;
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < ARRAY_SIZE(mf_action_result); i++)
-		if (mf_action_result[i].result == result)
+		if (mf_action_result[i].result == result) {
+			RAS_TRACE_EXIT(0);
 			return mf_action_result[i].action_result;
+		}
 
+	RAS_TRACE_EXIT(0);
 	return "unknown";
 }
 
@@ -172,6 +187,7 @@ int ras_memory_failure_event_handler(struct trace_seq *s,
 	struct tm *tm;
 	struct ras_mf_event ev;
 
+	RAS_TRACE_ENTRY();
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ALERT]);
 	/*
 	 * Newer kernels (3.10-rc1 or upper) provide an uptime clock.
@@ -195,18 +211,24 @@ int ras_memory_failure_event_handler(struct trace_seq *s,
 		strscpy(ev.timestamp, "1970-01-01 00:00:00 +0000", sizeof(ev.timestamp));
 	trace_seq_printf(s, "%s ", ev.timestamp);
 
-	if (tep_get_field_val(s,  event, "pfn", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "pfn", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	snprintf(ev.pfn, sizeof(ev.pfn), "0x%llx", val);
 	trace_seq_printf(s, "pfn=0x%llx ", val);
 
-	if (tep_get_field_val(s, event, "type", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.page_type = get_page_type(val);
 	trace_seq_printf(s, "page_type=%s ", ev.page_type);
 
-	if (tep_get_field_val(s, event, "result", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "result", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.action_result = get_action_result(val);
 	trace_seq_printf(s, "action_result=%s ", ev.action_result);
 
@@ -225,5 +247,6 @@ int ras_memory_failure_event_handler(struct trace_seq *s,
 #endif
 	run_mf_trigger(&ev);
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

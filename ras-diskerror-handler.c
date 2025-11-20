@@ -15,6 +15,7 @@
 #include "ras-logger.h"
 #include "ras-report.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 static const struct {
 	int             error;
@@ -39,9 +40,13 @@ static const char *get_blk_error(int err)
 {
 	unsigned int i;
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < ARRAY_SIZE(blk_errors); i++)
-		if (blk_errors[i].error == err)
+		if (blk_errors[i].error == err) {
+			RAS_TRACE_EXIT(0);
 			return blk_errors[i].name;
+		}
+	RAS_TRACE_EXIT(0);
 	return "unknown block error";
 }
 
@@ -57,6 +62,7 @@ int ras_diskerror_event_handler(struct trace_seq *s,
 	struct diskerror_event ev;
 	uint32_t dev;
 
+	RAS_TRACE_ENTRY();
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
 	/*
 	 * Newer kernels (3.10-rc1 or upper) provide an uptime clock.
@@ -78,31 +84,45 @@ int ras_diskerror_event_handler(struct trace_seq *s,
 			 "%Y-%m-%d %H:%M:%S %z", tm);
 	trace_seq_printf(s, "%s ", ev.timestamp);
 
-	if (tep_get_field_val(s, event, "dev", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "dev", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	dev = (uint32_t)val;
-	if (asprintf(&ev.dev, "%u:%u", MAJOR(dev), MINOR(dev)) < 0)
+	if (asprintf(&ev.dev, "%u:%u", MAJOR(dev), MINOR(dev)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "sector", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "sector", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.sector = val;
 
-	if (tep_get_field_val(s, event, "nr_sector", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "nr_sector", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.nr_sector = (unsigned int)val;
 
-	if (tep_get_field_val(s, event, "error", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "error", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.error = get_blk_error((int)val);
 
 	ev.rwbs = tep_get_field_raw(s, event, "rwbs", record, &len, 1);
-	if (!ev.rwbs)
+	if (!ev.rwbs) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.cmd = tep_get_field_raw(s, event, "cmd", record, &len, 1);
-	if (!ev.cmd)
+	if (!ev.cmd) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	/* Insert data into the SGBD */
 #ifdef HAVE_SQLITE3
@@ -114,5 +134,6 @@ int ras_diskerror_event_handler(struct trace_seq *s,
 	ras_report_diskerror_event(ras, &ev);
 #endif
 	free(ev.dev);
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

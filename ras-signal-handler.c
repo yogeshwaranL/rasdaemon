@@ -25,6 +25,7 @@
 #include "ras-signal-handler.h"
 #include "ras-report.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 enum {
 	TRACE_SIGNAL_DELIVERED,
@@ -60,6 +61,7 @@ static char *signal_res[] = {
 
 static void report_ras_signal_event(struct trace_seq *s, struct ras_signal_event *ev)
 {
+	RAS_TRACE_ENTRY();
 	trace_seq_printf(s,
 			 "%s signal: %s, errorno: %d, code: %s, comm: %s, pid: %d, grp: %d, res: %s, msg: %s",
 			 ev->timestamp, strsignal(ev->sig), ev->error_no,
@@ -68,6 +70,7 @@ static void report_ras_signal_event(struct trace_seq *s, struct ras_signal_event
 			 ev->group,
 			 (ev->result < 0 || ev->result > TRACE_SIGNAL_LOSE_INFO) ? "Unknown" : signal_res[ev->result],
 			 ev->sig == SIGBUS ? signal_msg[ev->code] : "Unknown");
+	RAS_TRACE_EXIT(0);
 }
 
 int ras_signal_event_handler(struct trace_seq *s, struct tep_record *record,
@@ -80,6 +83,7 @@ int ras_signal_event_handler(struct trace_seq *s, struct tep_record *record,
 	struct tm *tm;
 	struct ras_signal_event ev;
 
+	RAS_TRACE_ENTRY();
 	/*
 	 * Newer kernels (3.10-rc1 or upper) provide an uptime clock.
 	 * On previous kernels, the way to properly generate an event would
@@ -99,32 +103,46 @@ int ras_signal_event_handler(struct trace_seq *s, struct tep_record *record,
 		strftime(ev.timestamp, sizeof(ev.timestamp),
 			 "%Y-%m-%d %H:%M:%S %z", tm);
 
-	if (tep_get_field_val(s,  event, "sig", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "sig", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.sig = val;
 
-	if (tep_get_field_val(s, event, "errno", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "errno", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.error_no = val;
 
-	if (tep_get_field_val(s, event, "code", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "code", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.code = val;
 
 	ev.comm = tep_get_field_raw(s, event, "comm", record, &len, 1);
-	if (!ev.comm)
+	if (!ev.comm) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "pid", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "pid", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.pid = val;
 
-	if (tep_get_field_val(s, event, "group", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "group", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.group = val;
 
-	if (tep_get_field_val(s, event, "result", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "result", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.result = val;
 
 	report_ras_signal_event(s, &ev);
@@ -139,5 +157,6 @@ int ras_signal_event_handler(struct trace_seq *s, struct tep_record *record,
 	ras_report_signal_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

@@ -17,6 +17,7 @@
 #include "ras-non-standard-handler.h"
 #include "ras-report.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 #define ARM_ERR_VALID_ERROR_COUNT BIT(0)
 #define ARM_ERR_VALID_FLAGS BIT(1)
@@ -83,6 +84,7 @@ void display_raw_data(struct trace_seq *s,
 {
 	int i = 0, line_count = 0;
 
+	RAS_TRACE_ENTRY();
 	trace_seq_printf(s, "  %08x: ", i);
 	while (datalen >= 4) {
 		print_le_hex(s, buf, i);
@@ -95,6 +97,7 @@ void display_raw_data(struct trace_seq *s,
 			trace_seq_printf(s, " ");
 		}
 	}
+	RAS_TRACE_EXIT(0);
 }
 
 static const char * const arm_proc_error_type_strs[] = {
@@ -173,12 +176,16 @@ static int decode_err_data_bits(char *buf, unsigned long data,
 {
 	int bit;
 
-	if (!buf || !data_str || !str_size)
+	RAS_TRACE_ENTRY();
+	if (!buf || !data_str || !str_size) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	for (bit = 0; bit < str_size; bit++)
 		if (data & BIT(bit))
 			mce_snprintf(buf, " %s", ((char *)data_str[bit]));
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -189,12 +196,15 @@ static void parse_arm_err_info(struct trace_seq *s, uint32_t type, uint64_t erro
 	bool proc_context_corrupt, corrected, precise_pc, restartable_pc;
 	bool time_out, access_mode;
 
+	RAS_TRACE_ENTRY();
 	/*
 	 * Vendor type errors have error information values that are vendor
 	 * specific.
 	 */
-	if (type & ARM_VENDOR_ERROR)
+	if (type & ARM_VENDOR_ERROR) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 
 	if (error_info & ARM_ERR_VALID_TRANSACTION_TYPE) {
 		trans_type = ((error_info >> ARM_ERR_TRANSACTION_SHIFT)
@@ -275,8 +285,10 @@ static void parse_arm_err_info(struct trace_seq *s, uint32_t type, uint64_t erro
 	}
 
 	/* The rest of the fields are specific to bus errors */
-	if (type != ARM_BUS_ERROR)
+	if (type != ARM_BUS_ERROR) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 
 	if (error_info & ARM_ERR_VALID_PARTICIPATION_TYPE) {
 		participation_type = ((error_info >> ARM_ERR_PARTICIPATION_TYPE_SHIFT)
@@ -318,6 +330,7 @@ static void parse_arm_err_info(struct trace_seq *s, uint32_t type, uint64_t erro
 		else
 			trace_seq_printf(s, " access mode: secure");
 	}
+	RAS_TRACE_EXIT(0);
 }
 
 static int parse_arm_processor_err_info(struct trace_seq *s, struct ras_arm_event *ev)
@@ -326,9 +339,11 @@ static int parse_arm_processor_err_info(struct trace_seq *s, struct ras_arm_even
 	struct ras_arm_err_info *err_info;
 	int i, num_pei;
 
+	RAS_TRACE_ENTRY();
 	if (ev->pei_len % err_info_size != 0) {
 		log(TERM, LOG_ERR,
 		    "The event data does not match to the ARM Processor Error Information Structure\n");
+		RAS_TRACE_EXIT(-1);
 		return -1;
 	}
 	num_pei = ev->pei_len / err_info_size;
@@ -371,20 +386,24 @@ static int parse_arm_processor_err_info(struct trace_seq *s, struct ras_arm_even
 		err_info += 1;
 	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
 #ifdef HAVE_CPU_FAULT_ISOLATION
 static int is_core_failure(struct ras_arm_err_info *err_info)
 {
+	RAS_TRACE_ENTRY();
 	if (err_info->validation_bits & ARM_ERR_VALID_FLAGS) {
 		/*
 		 * core failure:
 		 * Bit 0\1\3: (at lease 1)
 		 * Bit 2: 0
 		 */
+		RAS_TRACE_EXIT(0);
 		return (err_info->flags & 0xf) && !(err_info->flags & (0x1 << BIT2));
 	}
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -397,9 +416,11 @@ static int count_errors(struct ras_arm_event *ev, int sev)
 	int i;
 	int error_count;
 
+	RAS_TRACE_ENTRY();
 	if (ev->pei_len % err_info_size != 0) {
 		log(TERM, LOG_ERR,
 		    "The event data does not match to the ARM Processor Error Information Structure\n");
+		RAS_TRACE_EXIT(num);
 		return num;
 	}
 	num_pei = ev->pei_len / err_info_size;
@@ -423,6 +444,7 @@ static int count_errors(struct ras_arm_event *ev, int sev)
 		err_info += 1;
 	}
 	log(TERM, LOG_INFO, "%d error in cpu core caught\n", num);
+	RAS_TRACE_EXIT(num);
 	return num;
 }
 
@@ -436,14 +458,19 @@ static int ras_handle_cpu_error(struct trace_seq *s,
 	char *severity;
 	struct error_info err_info;
 
-	if (tep_get_field_val(s, event, "cpu", record, &val, 1) < 0)
+	RAS_TRACE_ENTRY();
+	if (tep_get_field_val(s, event, "cpu", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	cpu = val;
 	trace_seq_printf(s, "\n cpu: %d", cpu);
 
 	/* record cpu error */
-	if (tep_get_field_val(s, event, "sev", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "sev", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	/* refer to UEFI_2_9 specification chapter N2.2 Table N-5 */
 	switch (val) {
 	case GHES_SEV_NO:
@@ -472,6 +499,7 @@ static int ras_handle_cpu_error(struct trace_seq *s,
 		}
 	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 #endif
@@ -487,6 +515,7 @@ int ras_arm_event_handler(struct trace_seq *s,
 	struct ras_arm_event ev;
 	int len = 0;
 
+	RAS_TRACE_ENTRY();
 	memset(&ev, 0, sizeof(ev));
 
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
@@ -511,28 +540,38 @@ int ras_arm_event_handler(struct trace_seq *s,
 			 "%Y-%m-%d %H:%M:%S %z", tm);
 	trace_seq_printf(s, "%s", ev.timestamp);
 
-	if (tep_get_field_val(s, event, "affinity", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "affinity", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.affinity = val;
 	trace_seq_printf(s, " affinity: %d", ev.affinity);
 
-	if (tep_get_field_val(s, event, "mpidr", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "mpidr", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.mpidr = val;
 	trace_seq_printf(s, " MPIDR: 0x%llx", (unsigned long long)ev.mpidr);
 
-	if (tep_get_field_val(s, event, "midr", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "midr", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.midr = val;
 	trace_seq_printf(s, " MIDR: 0x%llx", (unsigned long long)ev.midr);
 
-	if (tep_get_field_val(s, event, "running_state", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "running_state", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.running_state = val;
 	trace_seq_printf(s, " running_state: %d", ev.running_state);
 
-	if (tep_get_field_val(s, event, "psci_state", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "psci_state", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.psci_state = val;
 	trace_seq_printf(s, " psci_state: %d", ev.psci_state);
 
@@ -548,16 +587,20 @@ int ras_arm_event_handler(struct trace_seq *s,
 		if (!ev.pei_error) {
 			/* Keep support for OOT CPER N.16/N.17 full table patch */
 			ev.pei_error = tep_get_field_raw(s, event, "buf", record, &len, 1);
-			if (!ev.pei_error)
+			if (!ev.pei_error) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 			legacy_patch = true;
 		}
 		display_raw_data(s, ev.pei_error, ev.pei_len);
 
 		parse_arm_processor_err_info(s, &ev);
 
-		if (tep_get_field_val(s, event, "ctx_len", record, &val, 1) < 0)
+		if (tep_get_field_val(s, event, "ctx_len", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.ctx_len = val;
 		trace_seq_printf(s, " ARM Processor Err Context Info data len: %d\n",
 				 ev.ctx_len);
@@ -566,12 +609,16 @@ int ras_arm_event_handler(struct trace_seq *s,
 			ev.ctx_error = tep_get_field_raw(s, event, "ctx_buf", record, &len, 1);
 		else
 			ev.ctx_error = tep_get_field_raw(s, event, "buf1", record, &len, 1);
-		if (!ev.ctx_error)
+		if (!ev.ctx_error) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		display_raw_data(s, ev.ctx_error, ev.ctx_len);
 
-		if (tep_get_field_val(s, event, "oem_len", record, &val, 1) < 0)
+		if (tep_get_field_val(s, event, "oem_len", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.oem_len = val;
 		trace_seq_printf(s, " Vendor Specific Err Info data len: %d\n",
 				 ev.oem_len);
@@ -580,8 +627,10 @@ int ras_arm_event_handler(struct trace_seq *s,
 			ev.vsei_error = tep_get_field_raw(s, event, "oem_buf", record, &len, 1);
 		else
 			ev.vsei_error = tep_get_field_raw(s, event, "buf2", record, &len, 1);
-		if (!ev.vsei_error)
+		if (!ev.vsei_error) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 
 #ifdef HAVE_AMP_NS_DECODE
 		//decode ampere specific error
@@ -606,5 +655,6 @@ int ras_arm_event_handler(struct trace_seq *s,
 	ras_report_arm_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

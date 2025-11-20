@@ -18,6 +18,7 @@
 #include "ras-mce-handler.h"
 #include "ras-mc-handler.h"
 #include "ras-record.h"
+#include "ras-daemon-trace.h"
 
 /*
  * BuildRequires: sqlite-devel
@@ -59,8 +60,11 @@ int ras_store_mc_event(struct ras_events *ras, struct ras_mc_event *ev)
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_mc_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_mc_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "mc_event store: %p\n", priv->stmt_mc_event);
 
 	sqlite3_bind_text(priv->stmt_mc_event,  1, ev->timestamp, -1, NULL);
@@ -87,6 +91,7 @@ int ras_store_mc_event(struct ras_events *ras, struct ras_mc_event *ev)
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -114,8 +119,11 @@ int ras_store_aer_event(struct ras_events *ras, struct ras_aer_event *ev)
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_aer_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_aer_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "aer_event store: %p\n", priv->stmt_aer_event);
 
 	sqlite3_bind_text(priv->stmt_aer_event,  1, ev->timestamp, -1, NULL);
@@ -134,6 +142,7 @@ int ras_store_aer_event(struct ras_events *ras, struct ras_aer_event *ev)
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -164,8 +173,11 @@ int ras_store_non_standard_record(struct ras_events *ras, struct ras_non_standar
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_non_standard_record)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_non_standard_record) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "non_standard_event store: %p\n", priv->stmt_non_standard_record);
 
 	sqlite3_bind_text(priv->stmt_non_standard_record,  1, ev->timestamp, -1, NULL);
@@ -185,6 +197,7 @@ int ras_store_non_standard_record(struct ras_events *ras, struct ras_non_standar
 		    "Failed reset non_standard_event on sqlite: error = %d\n", rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -223,8 +236,11 @@ int ras_store_arm_record(struct ras_events *ras, struct ras_arm_event *ev)
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_arm_record)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_arm_record) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "arm_event store: %p\n", priv->stmt_arm_record);
 
 	sqlite3_bind_text(priv->stmt_arm_record,  1,  ev->timestamp, -1, NULL);
@@ -256,6 +272,7 @@ int ras_store_arm_record(struct ras_events *ras, struct ras_arm_event *ev)
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -284,8 +301,11 @@ int ras_store_extlog_mem_record(struct ras_events *ras, struct ras_extlog_event 
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_extlog_record)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_extlog_record) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "extlog_record store: %p\n", priv->stmt_extlog_record);
 
 	sqlite3_bind_text(priv->stmt_extlog_record,  1, ev->timestamp, -1, NULL);
@@ -308,6 +328,7 @@ int ras_store_extlog_mem_record(struct ras_events *ras, struct ras_extlog_event 
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -361,8 +382,11 @@ int ras_store_mce_record(struct ras_events *ras, struct mce_event *ev)
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_mce_record)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_mce_record) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "mce_record store: %p\n", priv->stmt_mce_record);
 
 	sqlite3_bind_text(priv->stmt_mce_record,  1, ev->timestamp, -1, NULL);
@@ -403,6 +427,7 @@ int ras_store_mce_record(struct ras_events *ras, struct mce_event *ev)
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -433,8 +458,11 @@ int ras_store_devlink_event(struct ras_events *ras, struct devlink_event *ev)
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_devlink_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_devlink_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "devlink_event store: %p\n", priv->stmt_devlink_event);
 
 	sqlite3_bind_text(priv->stmt_devlink_event,  1, ev->timestamp, -1, NULL);
@@ -455,6 +483,7 @@ int ras_store_devlink_event(struct ras_events *ras, struct devlink_event *ev)
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -486,8 +515,11 @@ int ras_store_diskerror_event(struct ras_events *ras, struct diskerror_event *ev
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_diskerror_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_diskerror_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "diskerror_event store: %p\n", priv->stmt_diskerror_event);
 
 	sqlite3_bind_text(priv->stmt_diskerror_event,  1, ev->timestamp, -1, NULL);
@@ -509,6 +541,7 @@ int ras_store_diskerror_event(struct ras_events *ras, struct diskerror_event *ev
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -537,8 +570,11 @@ int ras_store_mf_event(struct ras_events *ras, struct ras_mf_event *ev)
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_mf_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_mf_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "memory_failure_event store: %p\n", priv->stmt_mf_event);
 
 	sqlite3_bind_text(priv->stmt_mf_event,  1, ev->timestamp, -1, NULL);
@@ -559,6 +595,7 @@ int ras_store_mf_event(struct ras_events *ras, struct ras_mf_event *ev)
 
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -596,8 +633,11 @@ int ras_store_cxl_poison_event(struct ras_events *ras, struct ras_cxl_poison_eve
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_cxl_poison_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_cxl_poison_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "cxl_poison_event store: %p\n", priv->stmt_cxl_poison_event);
 
 	sqlite3_bind_text(priv->stmt_cxl_poison_event, 1, ev->timestamp, -1, NULL);
@@ -626,6 +666,7 @@ int ras_store_cxl_poison_event(struct ras_events *ras, struct ras_cxl_poison_eve
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -654,8 +695,11 @@ int ras_store_cxl_aer_ue_event(struct ras_events *ras, struct ras_cxl_aer_ue_eve
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_cxl_aer_ue_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_cxl_aer_ue_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "cxl_aer_ue_event store: %p\n", priv->stmt_cxl_aer_ue_event);
 
 	sqlite3_bind_text(priv->stmt_cxl_aer_ue_event, 1, ev->timestamp, -1, NULL);
@@ -677,6 +721,7 @@ int ras_store_cxl_aer_ue_event(struct ras_events *ras, struct ras_cxl_aer_ue_eve
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -703,8 +748,11 @@ int ras_store_cxl_aer_ce_event(struct ras_events *ras, struct ras_cxl_aer_ce_eve
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_cxl_aer_ce_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_cxl_aer_ce_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "cxl_aer_ce_event store: %p\n", priv->stmt_cxl_aer_ce_event);
 
 	sqlite3_bind_text(priv->stmt_cxl_aer_ce_event, 1, ev->timestamp, -1, NULL);
@@ -724,6 +772,7 @@ int ras_store_cxl_aer_ce_event(struct ras_events *ras, struct ras_cxl_aer_ce_eve
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -753,8 +802,11 @@ int ras_store_cxl_overflow_event(struct ras_events *ras, struct ras_cxl_overflow
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_cxl_overflow_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_cxl_overflow_event) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 	log(TERM, LOG_INFO, "cxl_overflow_event store: %p\n", priv->stmt_cxl_overflow_event);
 
 	sqlite3_bind_text(priv->stmt_cxl_overflow_event, 1, ev->timestamp, -1, NULL);
@@ -777,6 +829,7 @@ int ras_store_cxl_overflow_event(struct ras_events *ras, struct ras_cxl_overflow
 		    rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -784,8 +837,11 @@ static int ras_store_cxl_common_hdr(sqlite3_stmt *stmt, struct ras_cxl_event_com
 {
 	int idx = 1;
 
-	if (!stmt || !hdr)
+	RAS_TRACE_ENTRY();
+	if (!stmt || !hdr) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	sqlite3_bind_text(stmt, idx++, hdr->timestamp, -1, NULL);
 	sqlite3_bind_text(stmt, idx++, hdr->memdev, -1, NULL);
@@ -803,6 +859,7 @@ static int ras_store_cxl_common_hdr(sqlite3_stmt *stmt, struct ras_cxl_event_com
 	sqlite3_bind_int(stmt, idx++, hdr->hdr_ld_id);
 	sqlite3_bind_int(stmt, idx++, hdr->hdr_head_id);
 
+	RAS_TRACE_EXIT(idx);
 	return idx;
 }
 
@@ -841,13 +898,18 @@ int ras_store_cxl_generic_event(struct ras_events *ras, struct ras_cxl_generic_e
 	int idx;
 	int rc;
 
-	if (!priv || !priv->stmt_cxl_generic_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_cxl_generic_event) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	log(TERM, LOG_INFO, "cxl_generic_event store: %p\n", priv->stmt_cxl_generic_event);
 
 	idx = ras_store_cxl_common_hdr(priv->stmt_cxl_generic_event, &ev->hdr);
-	if (idx <= 0)
+	if (idx <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	sqlite3_bind_blob(priv->stmt_cxl_generic_event, idx++, ev->data,
 			  CXL_EVENT_RECORD_DATA_LENGTH, NULL);
@@ -862,6 +924,7 @@ int ras_store_cxl_generic_event(struct ras_events *ras, struct ras_cxl_generic_e
 		    "Failed reset stmt_cxl_generic_event on sqlite: error = %d\n", rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -918,14 +981,19 @@ int ras_store_cxl_general_media_event(struct ras_events *ras,
 	int idx;
 	int rc;
 
-	if (!priv || !priv->stmt_cxl_general_media_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_cxl_general_media_event) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	log(TERM, LOG_INFO, "cxl_general_media_event store: %p\n",
 	    priv->stmt_cxl_general_media_event);
 
 	idx = ras_store_cxl_common_hdr(priv->stmt_cxl_general_media_event, &ev->hdr);
-	if (idx <= 0)
+	if (idx <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	sqlite3_bind_int64(priv->stmt_cxl_general_media_event, idx++, ev->dpa);
 	sqlite3_bind_int(priv->stmt_cxl_general_media_event, idx++, ev->dpa_flags);
 	sqlite3_bind_int(priv->stmt_cxl_general_media_event, idx++, ev->descriptor);
@@ -959,6 +1027,7 @@ int ras_store_cxl_general_media_event(struct ras_events *ras,
 		    "Failed reset stmt_cxl_general_media_event on sqlite: error = %d\n", rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -1020,14 +1089,19 @@ int ras_store_cxl_dram_event(struct ras_events *ras, struct ras_cxl_dram_event *
 	int idx;
 	int rc;
 
-	if (!priv || !priv->stmt_cxl_dram_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_cxl_dram_event) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	log(TERM, LOG_INFO, "cxl_dram_event store: %p\n",
 	    priv->stmt_cxl_dram_event);
 
 	idx = ras_store_cxl_common_hdr(priv->stmt_cxl_dram_event, &ev->hdr);
-	if (idx <= 0)
+	if (idx <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	sqlite3_bind_int64(priv->stmt_cxl_dram_event, idx++, ev->dpa);
 	sqlite3_bind_int(priv->stmt_cxl_dram_event, idx++, ev->dpa_flags);
 	sqlite3_bind_int(priv->stmt_cxl_dram_event, idx++, ev->descriptor);
@@ -1068,6 +1142,7 @@ int ras_store_cxl_dram_event(struct ras_events *ras, struct ras_cxl_dram_event *
 		    "Failed reset stmt_cxl_dram_event on sqlite: error = %d\n", rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -1119,14 +1194,19 @@ int ras_store_cxl_memory_module_event(struct ras_events *ras,
 	int idx;
 	int rc;
 
-	if (!priv || !priv->stmt_cxl_memory_module_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_cxl_memory_module_event) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	log(TERM, LOG_INFO, "cxl_memory_module_event store: %p\n",
 	    priv->stmt_cxl_memory_module_event);
 
 	idx = ras_store_cxl_common_hdr(priv->stmt_cxl_memory_module_event, &ev->hdr);
-	if (idx <= 0)
+	if (idx <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	sqlite3_bind_int(priv->stmt_cxl_memory_module_event, idx++, ev->event_type);
 	sqlite3_bind_int(priv->stmt_cxl_memory_module_event, idx++, ev->health_status);
 	sqlite3_bind_int(priv->stmt_cxl_memory_module_event, idx++, ev->media_status);
@@ -1154,6 +1234,7 @@ int ras_store_cxl_memory_module_event(struct ras_events *ras,
 		    "Failed reset stmt_cxl_memory_module_event on sqlite: error = %d\n", rc);
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -1183,8 +1264,11 @@ int ras_store_signal_event(struct ras_events *ras, struct ras_signal_event *ev)
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv || !priv->stmt_signal_event)
+	RAS_TRACE_ENTRY();
+	if (!priv || !priv->stmt_signal_event) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	log(TERM, LOG_INFO, "signal_event store: %p\n", priv->stmt_signal_event);
 
 	sqlite3_bind_text(priv->stmt_signal_event,  1, ev->timestamp, -1, NULL);
@@ -1209,6 +1293,7 @@ int ras_store_signal_event(struct ras_events *ras, struct ras_signal_event *ev)
 
 	log(TERM, LOG_INFO, "register inserted at db\n");
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 #endif
@@ -1225,6 +1310,7 @@ static int __ras_mc_prepare_stmt(struct sqlite3_priv *priv,
 	char sql[1024], *p = sql, *end = sql + sizeof(sql);
 	const struct db_fields *field;
 
+	RAS_TRACE_ENTRY();
 	p += snprintf(p, end - p, "INSERT INTO %s (",
 		      db_tab->name);
 
@@ -1259,6 +1345,7 @@ static int __ras_mc_prepare_stmt(struct sqlite3_priv *priv,
 		log(TERM, LOG_INFO, "Recording %s events\n", db_tab->name);
 	}
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -1269,6 +1356,7 @@ static int ras_mc_create_table(struct sqlite3_priv *priv,
 	char sql[1024], *p = sql, *end = sql + sizeof(sql);
 	int i, rc;
 
+	RAS_TRACE_ENTRY();
 	p += snprintf(p, end - p, "CREATE TABLE IF NOT EXISTS %s (",
 		      db_tab->name);
 
@@ -1291,6 +1379,7 @@ static int ras_mc_create_table(struct sqlite3_priv *priv,
 		    "Failed to create table %s on %s: error = %d\n",
 		    db_tab->name, SQLITE_RAS_DB, rc);
 	}
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -1303,12 +1392,14 @@ static int ras_mc_alter_table(struct sqlite3_priv *priv,
 	int col_count;
 	int i, j, rc, found;
 
+	RAS_TRACE_ENTRY();
 	snprintf(p, end - p, "SELECT * FROM %s", db_tab->name);
 	rc = sqlite3_prepare_v2(priv->db, sql, -1, stmt, NULL);
 	if (rc != SQLITE_OK) {
 		log(TERM, LOG_ERR,
 		    "Failed to query fields from the table %s on %s: error = %d\n",
 		    db_tab->name, SQLITE_RAS_DB, rc);
+		RAS_TRACE_EXIT(rc);
 		return rc;
 	}
 
@@ -1339,6 +1430,7 @@ static int ras_mc_alter_table(struct sqlite3_priv *priv,
 				    "Failed to add new field %s to the table %s on %s: error = %d\n",
 				    field->name, db_tab->name,
 				    SQLITE_RAS_DB, rc);
+				RAS_TRACE_EXIT(rc);
 				return rc;
 			}
 			p = sql;
@@ -1346,6 +1438,7 @@ static int ras_mc_alter_table(struct sqlite3_priv *priv,
 		}
 	}
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -1355,6 +1448,7 @@ static int ras_mc_prepare_stmt(struct sqlite3_priv *priv,
 {
 	int rc;
 
+	RAS_TRACE_ENTRY();
 	rc = __ras_mc_prepare_stmt(priv, stmt, db_tab);
 	if (rc != SQLITE_OK) {
 		log(TERM, LOG_ERR,
@@ -1371,12 +1465,14 @@ static int ras_mc_prepare_stmt(struct sqlite3_priv *priv,
 			    db_tab->name, SQLITE_RAS_DB,
 			    sqlite3_errmsg(priv->db));
 			stmt = NULL;
+			RAS_TRACE_EXIT(rc);
 			return rc;
 		}
 
 		rc = __ras_mc_prepare_stmt(priv, stmt, db_tab);
 	}
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -1387,13 +1483,17 @@ int ras_mc_add_vendor_table(struct ras_events *ras,
 	int rc;
 	struct sqlite3_priv *priv = ras->db_priv;
 
-	if (!priv)
+	RAS_TRACE_ENTRY();
+	if (!priv) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	rc = ras_mc_create_table(priv, db_tab);
 	if (rc == SQLITE_OK)
 		rc = ras_mc_prepare_stmt(priv, stmt, db_tab);
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -1401,11 +1501,13 @@ int ras_mc_finalize_vendor_table(sqlite3_stmt *stmt)
 {
 	int rc;
 
+	RAS_TRACE_ENTRY();
 	rc = sqlite3_finalize(stmt);
 	if (rc != SQLITE_OK)
 		log(TERM, LOG_ERR,
 		    "Failed to finalize sqlite: error = %d\n", rc);
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -1415,17 +1517,22 @@ int ras_mc_event_opendb(unsigned int cpu, struct ras_events *ras)
 	sqlite3 *db;
 	struct sqlite3_priv *priv;
 
+	RAS_TRACE_ENTRY();
 	printf("Calling %s()\n", __func__);
 
 	ras->db_ref_count++;
-	if (ras->db_ref_count > 1)
+	if (ras->db_ref_count > 1) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 
 	ras->db_priv = NULL;
 
 	priv = calloc(1, sizeof(*priv));
-	if (!priv)
+	if (!priv) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	struct stat st = {0};
 
@@ -1632,10 +1739,12 @@ int ras_mc_event_opendb(unsigned int cpu, struct ras_events *ras)
 #endif
 
 	ras->db_priv = priv;
+	RAS_TRACE_EXIT(0);
 	return 0;
 
 error:
 	free(priv);
+	RAS_TRACE_EXIT(-1);
 	return -1;
 }
 
@@ -1645,21 +1754,30 @@ int ras_mc_event_closedb(unsigned int cpu, struct ras_events *ras)
 	sqlite3 *db;
 	struct sqlite3_priv *priv = ras->db_priv;
 
+	RAS_TRACE_ENTRY();
 	printf("Calling %s()\n", __func__);
 
 	if (ras->db_ref_count > 0)
 		ras->db_ref_count--;
-	else
+	else {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (ras->db_ref_count > 0)
+	}
+	if (ras->db_ref_count > 0) {
+		RAS_TRACE_EXIT(0);
 		return 0;
+	}
 
-	if (!priv)
+	if (!priv) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	db = priv->db;
-	if (!db)
+	if (!db) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	if (priv->stmt_mc_event) {
 		rc = sqlite3_finalize(priv->stmt_mc_event);
@@ -1837,5 +1955,6 @@ int ras_mc_event_closedb(unsigned int cpu, struct ras_events *ras)
 	free(priv);
 	ras->db_priv = NULL;
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

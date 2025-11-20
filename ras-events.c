@@ -37,6 +37,7 @@
 #include "ras-signal-handler.h"
 #include "ras-record.h"
 #include "trigger.h"
+#include "ras-daemon-trace.h"
 
 /*
  * Polling time, if read() doesn't block. Currently, trace_pipe_raw never
@@ -67,9 +68,11 @@ static int get_debugfs_dir(char *tracing_dir, size_t len)
 	char line[MAX_PATH + 1 + 256];
 	char *p, *type, *dir;
 
+	RAS_TRACE_ENTRY();
 	fp = fopen("/proc/mounts", "r");
 	if (!fp) {
 		log(ALL, LOG_INFO, "Can't open /proc/mounts");
+		RAS_TRACE_EXIT(-errno);
 		return -errno;
 	}
 
@@ -92,12 +95,14 @@ static int get_debugfs_dir(char *tracing_dir, size_t len)
 		if (!strcmp(type, "debugfs")) {
 			fclose(fp);
 			strscpy(tracing_dir, dir, len - 1);
+			RAS_TRACE_EXIT(0);
 			return 0;
 		}
 	} while (1);
 
 	fclose(fp);
 	log(ALL, LOG_INFO, "Can't find debugfs\n");
+	RAS_TRACE_EXIT(-ENOENT);
 	return -ENOENT;
 }
 
@@ -105,14 +110,18 @@ static int wait_access(char *path, int ms)
 {
 	int i;
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < ms; i++) {
-		if (access(path, F_OK) == 0)
+		if (access(path, F_OK) == 0) {
+			RAS_TRACE_EXIT(0);
 			return 0;
+		}
 		usleep(1000);
 	}
 
 	log(ALL, LOG_WARNING, "%s failed, %s not created in %d ms\n",
 	    __func__, path, ms);
+	RAS_TRACE_EXIT(-1);
 	return -1;
 }
 
@@ -121,19 +130,27 @@ static int open_trace(struct ras_events *ras, char *name, int flags)
 	char fname[MAX_PATH + 1];
 	int rc;
 
+	RAS_TRACE_ENTRY();
 	rc = strscpy(fname, ras->tracing, sizeof(fname));
-	if (rc < 0)
+	if (rc < 0) {
+		RAS_TRACE_EXIT(rc);
 		return rc;
+	}
 	rc = strscat(fname, "/", sizeof(fname));
-	if (rc < 0)
+	if (rc < 0) {
+		RAS_TRACE_EXIT(rc);
 		return rc;
+	}
 	rc = strscat(fname, name, sizeof(fname));
-	if (rc < 0)
+	if (rc < 0) {
+		RAS_TRACE_EXIT(rc);
 		return rc;
+	}
 
 	rc = wait_access(fname, 30000);
 	if (rc != 0) {
 		/* use -1 to keep same error value with open() */
+		RAS_TRACE_EXIT(-1);
 		return -1;
 	}
 
@@ -141,9 +158,11 @@ static int open_trace(struct ras_events *ras, char *name, int flags)
 	if (rc < 0) {
 		rc = -errno;
 
+		RAS_TRACE_EXIT(-errno);
 		return -errno;
 	}
 
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }
 
@@ -154,18 +173,25 @@ static int get_tracing_dir(struct ras_events *ras)
 	DIR		*dir;
 	struct dirent	*entry;
 
+	RAS_TRACE_ENTRY();
 	get_debugfs_dir(ras->debugfs, sizeof(ras->debugfs));
 
 	rc = strscpy(fname, ras->debugfs, sizeof(fname));
-	if (rc < 0)
+	if (rc < 0) {
+		RAS_TRACE_EXIT(rc);
 		return rc;
+	}
 	rc = strscat(fname, "/tracing", sizeof(fname));
-	if (rc < 0)
+	if (rc < 0) {
+		RAS_TRACE_EXIT(rc);
 		return rc;
+	}
 
 	dir = opendir(fname);
-	if (!dir)
+	if (!dir) {
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
+	}
 
 	for (entry = readdir(dir); entry; entry = readdir(dir)) {
 		if (strstr(entry->d_name, "instances")) {
@@ -180,17 +206,21 @@ static int get_tracing_dir(struct ras_events *ras)
 	if (has_instances) {
 		rc = strscat(ras->tracing, "/instances/" TOOL_NAME,
 			     sizeof(ras->tracing));
-		if (rc < 0)
+		if (rc < 0) {
+			RAS_TRACE_EXIT(rc);
 			return rc;
+		}
 
 		rc = mkdir(ras->tracing, 0700);
 		if (rc < 0 && errno != EEXIST) {
 			log(ALL, LOG_INFO,
 			    "Unable to create " TOOL_NAME " instance at %s\n",
 			    ras->tracing);
+			RAS_TRACE_EXIT(-EINVAL);
 			return -EINVAL;
 		}
 	}
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -198,13 +228,16 @@ static bool is_disabled_event(char *group, char *event)
 {
 	char ras_event_name[MAX_PATH + 1];
 
+	RAS_TRACE_ENTRY();
 	snprintf(ras_event_name, sizeof(ras_event_name), "%s:%s",
 		 group, event);
 
 	if (choices_disable && strlen(choices_disable) != 0 &&
 	    strstr(choices_disable, ras_event_name)) {
+		RAS_TRACE_EXIT(0);
 		return true;
 	}
+	RAS_TRACE_EXIT(0);
 	return false;
 }
 
@@ -217,6 +250,7 @@ static int __toggle_ras_mc_event(struct ras_events *ras,
 	int fd, rc;
 	char fname[MAX_PATH + 1];
 
+	RAS_TRACE_ENTRY();
 	if (enable)
 		enable = is_disabled_event(group, event) ? 0 : 1;
 
@@ -228,6 +262,7 @@ static int __toggle_ras_mc_event(struct ras_events *ras,
 	fd = open_trace(ras, "set_event", O_RDWR | O_APPEND);
 	if (fd < 0) {
 		log(ALL, LOG_WARNING, "Can't open set_event\n");
+		RAS_TRACE_EXIT(-errno);
 		return -errno;
 	}
 
@@ -235,11 +270,13 @@ static int __toggle_ras_mc_event(struct ras_events *ras,
 	if (rc < 0) {
 		log(ALL, LOG_WARNING, "Can't write to set_event\n");
 		close(fd);
+		RAS_TRACE_EXIT(rc);
 		return rc;
 	}
 	close(fd);
 	if (!rc) {
 		log(ALL, LOG_WARNING, "Nothing was written on set_event\n");
+		RAS_TRACE_EXIT(-EIO);
 		return -EIO;
 	}
 
@@ -247,6 +284,7 @@ static int __toggle_ras_mc_event(struct ras_events *ras,
 	    group, event,
 	    enable ? "enabled" : "disabled");
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -255,9 +293,11 @@ int toggle_ras_mc_event(int enable)
 	struct ras_events *ras;
 	int rc = 0;
 
+	RAS_TRACE_ENTRY();
 	ras = calloc(1, sizeof(*ras));
 	if (!ras) {
 		log(TERM, LOG_ERR, "Can't allocate memory for ras struct\n");
+		RAS_TRACE_EXIT(-errno);
 		return -errno;
 	}
 
@@ -323,9 +363,12 @@ int toggle_ras_mc_event(int enable)
 
 free_ras:
 	free(ras);
-	if (rc)
+	if (rc) {
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
+	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -333,11 +376,13 @@ static void setup_event_trigger(char *event)
 {
 	struct event_trigger trigger;
 
+	RAS_TRACE_ENTRY();
 	for (int i = 0; i < ARRAY_SIZE(event_triggers); i++) {
 		trigger = event_triggers[i];
 		if (!strcmp(event, trigger.name))
 			trigger.setup();
 	}
+	RAS_TRACE_EXIT(0);
 }
 
 #ifdef HAVE_DISKERROR
@@ -352,10 +397,12 @@ static int filter_ras_mc_event(struct ras_events *ras, char *group, char *event,
 	int fd, rc;
 	char fname[MAX_PATH + 1];
 
+	RAS_TRACE_ENTRY();
 	snprintf(fname, sizeof(fname), "events/%s/%s/filter", group, event);
 	fd = open_trace(ras, fname, O_RDWR | O_APPEND);
 	if (fd < 0) {
 		log(ALL, LOG_WARNING, "Can't open filter file\n");
+		RAS_TRACE_EXIT(-errno);
 		return -errno;
 	}
 
@@ -363,14 +410,17 @@ static int filter_ras_mc_event(struct ras_events *ras, char *group, char *event,
 	if (rc < 0) {
 		log(ALL, LOG_WARNING, "Can't write to filter file\n");
 		close(fd);
+		RAS_TRACE_EXIT(rc);
 		return rc;
 	}
 	close(fd);
 	if (!rc) {
 		log(ALL, LOG_WARNING, "Nothing was written on filter file\n");
+		RAS_TRACE_EXIT(-EIO);
 		return -EIO;
 	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 #endif
@@ -385,9 +435,12 @@ static int get_pagesize(struct ras_events *ras, struct tep_handle *pevent)
 	int fd, len, page_size = 4096;
 	char buf[page_size];
 
+	RAS_TRACE_ENTRY();
 	fd = open_trace(ras, "events/header_page", O_RDONLY);
-	if (fd < 0)
+	if (fd < 0) {
+		RAS_TRACE_EXIT(page_size);
 		return page_size;
+	}
 
 	len = read(fd, buf, page_size);
 	if (len <= 0)
@@ -397,6 +450,7 @@ static int get_pagesize(struct ras_events *ras, struct tep_handle *pevent)
 
 error:
 	close(fd);
+	RAS_TRACE_EXIT(page_size);
 	return page_size;
 }
 
@@ -406,6 +460,7 @@ static void parse_ras_data(struct pthread_data *pdata, struct kbuffer *kbuf,
 	struct tep_record record;
 	struct trace_seq s;
 
+	RAS_TRACE_ENTRY();
 	record.ts = time_stamp;
 	record.size = kbuffer_event_size(kbuf);
 	record.data = data;
@@ -427,14 +482,17 @@ static void parse_ras_data(struct pthread_data *pdata, struct kbuffer *kbuf,
 	printf("\n");
 	fflush(stdout);
 	trace_seq_destroy(&s);
+	RAS_TRACE_EXIT(0);
 }
 
 static int get_num_cpus(struct ras_events *ras)
 {
 	int cpus;
 
+	RAS_TRACE_ENTRY();
 	cpus = sysconf(_SC_NPROCESSORS_ONLN);
 	assert(cpus > 0);
+	RAS_TRACE_EXIT(cpus);
 	return cpus;
 }
 
@@ -445,6 +503,7 @@ static int set_buffer_percent(struct ras_events *ras, int percent)
 	int res = 0;
 	int fd;
 
+	RAS_TRACE_ENTRY();
 	fd = open_trace(ras, "buffer_percent", O_WRONLY);
 	if (fd >= 0) {
 		/* For the backward compatibility to the old kernels, do not return
@@ -462,6 +521,7 @@ static int set_buffer_percent(struct ras_events *ras, int percent)
 		res = -EINVAL;
 	}
 
+	RAS_TRACE_EXIT(res);
 	return res;
 }
 
@@ -490,11 +550,13 @@ static int read_ras_event_all_cpus(struct pthread_data *pdata,
 	char pipe_raw[PATH_MAX];
 	int legacy_kernel = 0;
 
+	RAS_TRACE_ENTRY();
 	memset(&warnonce, 0, sizeof(warnonce));
 
 	page = malloc(pdata[0].ras->page_size);
 	if (!page) {
 		log(TERM, LOG_ERR, "Can't allocate page\n");
+		RAS_TRACE_EXIT(-ENOMEM);
 		return -ENOMEM;
 	}
 
@@ -502,6 +564,7 @@ static int read_ras_event_all_cpus(struct pthread_data *pdata,
 	if (!kbuf) {
 		log(TERM, LOG_ERR, "Can't allocate kbuf\n");
 		free(page);
+		RAS_TRACE_EXIT(-ENOMEM);
 		return -ENOMEM;
 	}
 
@@ -651,9 +714,12 @@ error:
 			close(fds[i].fd);
 	}
 
-	if (legacy_kernel)
+	if (legacy_kernel) {
+		RAS_TRACE_EXIT(LEGACY_KERNEL);
 		return LEGACY_KERNEL;
+	}
 
+	RAS_TRACE_EXIT(-EINVAL);
 	return -EINVAL;
 }
 
@@ -666,6 +732,7 @@ static int read_ras_event(int fd,
 	unsigned long long time_stamp;
 	void *data;
 
+	RAS_TRACE_ENTRY();
 	/*
 	 * read() never blocks. We can't call poll() here, as it is
 	 * not supported on kernels below 3.10. So, the better is to just
@@ -675,6 +742,7 @@ static int read_ras_event(int fd,
 		size = read(fd, page, pdata->ras->page_size);
 		if (size < 0) {
 			log(TERM, LOG_WARNING, "read\n");
+			RAS_TRACE_EXIT(-EINVAL);
 			return -EINVAL;
 		} else if (size > 0) {
 			kbuffer_load_subbuffer(kbuf, page);
@@ -699,9 +767,11 @@ static void *handle_ras_events_cpu(void *priv)
 	char pipe_raw[PATH_MAX];
 	struct pthread_data *pdata = priv;
 
+	RAS_TRACE_ENTRY();
 	page = malloc(pdata->ras->page_size);
 	if (!page) {
 		log(TERM, LOG_ERR, "Can't allocate page\n");
+		RAS_TRACE_EXIT(0);
 		return NULL;
 	}
 
@@ -709,6 +779,7 @@ static void *handle_ras_events_cpu(void *priv)
 	if (!kbuf) {
 		log(TERM, LOG_ERR, "Can't allocate kbuf");
 		free(page);
+		RAS_TRACE_EXIT(0);
 		return NULL;
 	}
 
@@ -722,6 +793,7 @@ static void *handle_ras_events_cpu(void *priv)
 		log(TERM, LOG_ERR, "Can't open trace_pipe_raw\n");
 		kbuffer_free(kbuf);
 		free(page);
+		RAS_TRACE_EXIT(0);
 		return NULL;
 	}
 
@@ -734,6 +806,7 @@ static void *handle_ras_events_cpu(void *priv)
 			close(fd);
 			kbuffer_free(kbuf);
 			free(page);
+			RAS_TRACE_EXIT(0);
 			return 0;
 		}
 #ifdef HAVE_NON_STANDARD
@@ -758,6 +831,7 @@ static void *handle_ras_events_cpu(void *priv)
 	kbuffer_free(kbuf);
 	free(page);
 
+	RAS_TRACE_EXIT(0);
 	return NULL;
 }
 
@@ -772,21 +846,25 @@ static int select_tracing_timestamp(struct ras_events *ras)
 	unsigned int j1;
 	char buf[4096];
 
+	RAS_TRACE_ENTRY();
 	/* Check if uptime is supported (kernel 3.10-rc1 or upper) */
 	fd = open_trace(ras, "trace_clock", O_RDONLY);
 	if (fd < 0) {
 		log(TERM, LOG_ERR, "Can't open trace_clock\n");
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
 	}
 	size = read(fd, buf, sizeof(buf));
 	close(fd);
 	if (!size) {
 		log(TERM, LOG_ERR, "trace_clock is empty!\n");
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
 	}
 
 	if (!strstr(buf, UPTIME)) {
 		log(TERM, LOG_INFO, "Kernel doesn't support uptime clock\n");
+		RAS_TRACE_EXIT(0);
 		return 0;
 	}
 
@@ -795,6 +873,7 @@ static int select_tracing_timestamp(struct ras_events *ras)
 	if (!fd) {
 		log(TERM, LOG_ERR,
 		    "Kernel didn't allow writing to trace_clock\n");
+		RAS_TRACE_EXIT(0);
 		return 0;
 	}
 	rc = write(fd, UPTIME, sizeof(UPTIME));
@@ -803,6 +882,7 @@ static int select_tracing_timestamp(struct ras_events *ras)
 	if (rc < 0) {
 		log(TERM, LOG_ERR,
 		    "Kernel didn't allow selecting uptime on trace_clock\n");
+		RAS_TRACE_EXIT(0);
 		return 0;
 	}
 
@@ -811,12 +891,14 @@ static int select_tracing_timestamp(struct ras_events *ras)
 	if (!fp) {
 		log(TERM, LOG_ERR,
 		    "Couldn't read from /proc/uptime\n");
+		RAS_TRACE_EXIT(0);
 		return 0;
 	}
 	rc = fscanf(fp, "%zu.%u ", &uptime, &j1);
 	fclose(fp);
 	if (rc <= 0) {
 		log(TERM, LOG_ERR, "Can't parse /proc/uptime!\n");
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
 	}
 	now = time(NULL);
@@ -824,6 +906,7 @@ static int select_tracing_timestamp(struct ras_events *ras)
 	ras->use_uptime = 1;
 	ras->uptime_diff = now - uptime;
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -831,11 +914,15 @@ static bool check_event_exist(struct ras_events *ras, char *group, char *event)
 {
 	char fname[MAX_PATH + 256];
 
+	RAS_TRACE_ENTRY();
 	snprintf(fname, sizeof(fname), "%s/tracing/events/%s/%s",
 		 ras->debugfs, group, event);
-	if (access(fname, F_OK) == 0)
+	if (access(fname, F_OK) == 0) {
+		RAS_TRACE_EXIT(0);
 		return true;
+	}
 
+	RAS_TRACE_EXIT(0);
 	return false;
 }
 
@@ -850,9 +937,11 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 	char *page, fname[MAX_PATH + 1];
 	struct tep_event_filter *filter = NULL;
 
+	RAS_TRACE_ENTRY();
 	if (!check_event_exist(ras, group, event)) {
 		log(ALL, LOG_WARNING, "%s:%s event not exist\n",
 		    group, event);
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
 	}
 
@@ -864,12 +953,14 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 			log(TERM, LOG_ERR,
 			    "Feature %s:%s not supported on your system.\n",
 			    group, event);
+			RAS_TRACE_EXIT(EVENT_DISABLED);
 			return EVENT_DISABLED;
 		}
 
 		log(TERM, LOG_ERR, "Can't get %s:%s traces: %s\n",
 		    group, event, strerror(-fd));
 
+		RAS_TRACE_EXIT(fd);
 		return fd;
 	}
 
@@ -879,6 +970,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 		log(TERM, LOG_ERR, "Can't allocate page to read %s:%s format\n",
 		    group, event);
 		close(fd);
+		RAS_TRACE_EXIT(rc);
 		return rc;
 	}
 
@@ -891,6 +983,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 				    "Can't reallocate page to read %s:%s"
 				    " format\n", group, event);
 				close(fd);
+				RAS_TRACE_EXIT(rc);
 				return rc;
                         }
                 }
@@ -899,6 +992,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 			log(TERM, LOG_ERR, "Can't get arch page size\n");
 			free(page);
 			close(fd);
+			RAS_TRACE_EXIT(rc);
 			return rc;
 		}
 		size += rc;
@@ -911,6 +1005,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 		log(TERM, LOG_ERR, "Can't register event handler for %s:%s\n",
 		    group, event);
 		free(page);
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
 	}
 
@@ -918,6 +1013,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 	if (rc) {
 		log(TERM, LOG_ERR, "Can't parse event %s:%s\n", group, event);
 		free(page);
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
 	}
 
@@ -929,6 +1025,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 			log(TERM, LOG_ERR,
 			    "Failed to allocate filter for %s/%s.\n", group, event);
 			free(page);
+			RAS_TRACE_EXIT(-EINVAL);
 			return -EINVAL;
 		}
 		rc = tep_filter_add_filter_str(filter, filter_str);
@@ -938,6 +1035,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 			    "Failed to install filter for %s/%s: %s\n", group, event, error);
 			tep_filter_free(filter);
 			free(page);
+			RAS_TRACE_EXIT(rc);
 			return rc;
 		}
 	}
@@ -947,6 +1045,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 	if (is_disabled_event(group, event)) {
 		log(ALL, LOG_INFO, "Disabled %s:%s tracing from config\n",
 		    group, event);
+		RAS_TRACE_EXIT(EVENT_DISABLED);
 		return EVENT_DISABLED;
 	}
 
@@ -957,6 +1056,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 		log(TERM, LOG_ERR, "Can't enable %s:%s tracing\n",
 		    group, event);
 
+		RAS_TRACE_EXIT(-EINVAL);
 		return -EINVAL;
 	}
 
@@ -964,6 +1064,7 @@ static int add_event_handler(struct ras_events *ras, struct tep_handle *pevent,
 
 	log(ALL, LOG_INFO, "Enabled event %s:%s\n", group, event);
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -982,9 +1083,11 @@ int handle_ras_events(int record_events, int enable_ipmitool)
 	char signal_filter[64];
 #endif
 
+	RAS_TRACE_ENTRY();
 	ras = calloc(1, sizeof(*ras));
 	if (!ras) {
 		log(TERM, LOG_ERR, "Can't allocate memory for ras struct\n");
+		RAS_TRACE_EXIT(-errno);
 		return -errno;
 	}
 
@@ -1306,5 +1409,6 @@ err:
 #ifdef HAVE_MEMORY_ROW_CE_PFA
 	row_record_infos_free();
 #endif
+	RAS_TRACE_EXIT(rc);
 	return rc;
 }

@@ -17,6 +17,7 @@
 #include "ras-report.h"
 #include "unified-sel.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 /* bit field meaning for correctable error */
 static const char *aer_cor_errors[32] = {
@@ -57,9 +58,11 @@ static bool use_ipmitool = false;
 
 void ras_aer_handler_init(int enable_ipmitool)
 {
+	RAS_TRACE_ENTRY();
 #ifdef HAVE_OPENBMC_UNIFIED_SEL
 	use_ipmitool = (enable_ipmitool > 0) ? 1 : 0;
 #endif
+	RAS_TRACE_EXIT(0);
 }
 
 #define BUF_LEN	1024
@@ -71,12 +74,17 @@ static void get_pci_dev_name(char *bdf, char *pci_name, ssize_t len, u16 *vendor
 	struct pci_filter filter = {0};
 	char *err;
 
-	if (!pci_name)
+	RAS_TRACE_ENTRY();
+	if (!pci_name) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 
 	pacc = pci_alloc();
-	if (!pacc)
+	if (!pacc) {
+		RAS_TRACE_EXIT(0);
 		return;
+	}
 
 	pci_init(pacc);
 	pci_scan_bus(pacc);
@@ -101,6 +109,7 @@ static void get_pci_dev_name(char *bdf, char *pci_name, ssize_t len, u16 *vendor
 
 free:
 	pci_cleanup(pacc);
+	RAS_TRACE_EXIT(0);
 }
 
 int ras_aer_event_handler(struct trace_seq *s,
@@ -124,8 +133,11 @@ int ras_aer_event_handler(struct trace_seq *s,
 #endif
 	const char *level;
 
-	if (tep_get_field_val(s, event, "severity", record, &severity_val, 1) < 0)
+	RAS_TRACE_ENTRY();
+	if (tep_get_field_val(s, event, "severity", record, &severity_val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	switch (severity_val) {
 	case HW_EVENT_AER_UNCORRECTED_NON_FATAL:
 		level = loglevel_str[LOGLEVEL_CRIT];
@@ -164,15 +176,19 @@ int ras_aer_event_handler(struct trace_seq *s,
 
 	ev.dev_name = tep_get_field_raw(s, event, "dev_name",
 					record, &len, 1);
-	if (!ev.dev_name)
+	if (!ev.dev_name) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	trace_seq_printf(s, "%s ", ev.dev_name);
 
 	get_pci_dev_name(ev.dev_name, buf, sizeof(buf), &vendor_id, &device_id);
 	trace_seq_printf(s, "(%s - vendor_id: %#x device_id: %#x) ", buf, vendor_id, device_id);
 
-	if (tep_get_field_val(s,  event, "status", record, &status_val, 1) < 0)
+	if (tep_get_field_val(s,  event, "status", record, &status_val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	/* Fills the error buffer. If it is a correctable error then use the
 	 * aer_cor_errors bit field. Otherwise use aer_uncor_errors.
@@ -184,8 +200,10 @@ int ras_aer_event_handler(struct trace_seq *s,
 	ev.msg = buf;
 
 	if (tep_get_field_val(s, event, "tlp_header_valid",
-			      record, &val, 1) < 0)
+			      record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.tlp_header_valid = val;
 	if (ev.tlp_header_valid) {
@@ -266,9 +284,12 @@ int ras_aer_event_handler(struct trace_seq *s,
 
 #ifdef HAVE_OPENBMC_UNIFIED_SEL
 	if (use_ipmitool)
-		if (openbmc_unified_sel_log(severity_val, ev.dev_name, status_val) < 0)
+		if (openbmc_unified_sel_log(severity_val, ev.dev_name, status_val) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }

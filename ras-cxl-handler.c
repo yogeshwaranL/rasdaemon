@@ -17,6 +17,7 @@
 #include "ras-record.h"
 #include "ras-report.h"
 #include "types.h"
+#include "ras-daemon-trace.h"
 
 /* Common Functions */
 static void convert_timestamp(unsigned long long ts, char *ts_ptr, uint16_t size)
@@ -28,6 +29,7 @@ static void convert_timestamp(unsigned long long ts, char *ts_ptr, uint16_t size
 	time_t ts_secs = ts / 1000000000ULL;
 	struct tm *tm;
 
+	RAS_TRACE_ENTRY();
 	tm = localtime(&ts_secs);
 	if (tm)
 		strftime(ts_ptr, size, "%Y-%m-%d %H:%M:%S %z", tm);
@@ -35,6 +37,7 @@ static void convert_timestamp(unsigned long long ts, char *ts_ptr, uint16_t size
 	if (!ts || !tm)
 		strscpy(ts_ptr, "1970-01-01 00:00:00 +0000",
 			size);
+	RAS_TRACE_EXIT(0);
 }
 
 static void get_timestamp(struct trace_seq *s, struct tep_record *record,
@@ -43,12 +46,14 @@ static void get_timestamp(struct trace_seq *s, struct tep_record *record,
 	time_t now;
 	struct tm *tm;
 
+	RAS_TRACE_ENTRY();
 	now = record->ts / user_hz + ras->uptime_diff;
 	tm = localtime(&now);
 	if (tm)
 		strftime(ts_ptr, size, "%Y-%m-%d %H:%M:%S %z", tm);
 	else
 		strscpy(ts_ptr, "1970-01-01 00:00:00 +0000", size);
+	RAS_TRACE_EXIT(0);
 }
 
 struct cxl_event_flags {
@@ -62,11 +67,15 @@ static int decode_cxl_event_flags(struct trace_seq *s, uint32_t flags,
 {
 	int i;
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < num_elems; i++) {
 		if (flags & cxl_ev_flags[i].bit)
-			if (trace_seq_printf(s, "\'%s\' ", cxl_ev_flags[i].flag) <= 0)
+			if (trace_seq_printf(s, "\'%s\' ", cxl_ev_flags[i].flag) <= 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 	}
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -77,6 +86,7 @@ static char *uuid_be(const char *uu)
 	int i;
 	static const unsigned char be[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < 16; i++) {
 		p += snprintf(p, sizeof(uuid), "%.2x", (unsigned char)uu[be[i]]);
 		switch (i) {
@@ -91,15 +101,20 @@ static char *uuid_be(const char *uu)
 
 	*p = 0;
 
+	RAS_TRACE_EXIT(0);
 	return uuid;
 }
 
 static const char * const get_cxl_type_str(const char * const *type_array,
 					   uint8_t num_elems, uint8_t type)
 {
-	if (type >= num_elems)
+	RAS_TRACE_ENTRY();
+	if (type >= num_elems) {
+		RAS_TRACE_EXIT(0);
 		return "Unknown";
+	}
 
+	RAS_TRACE_EXIT(0);
 	return type_array[type];
 }
 
@@ -133,33 +148,50 @@ int ras_cxl_poison_event_handler(struct trace_seq *s,
 	struct ras_events *ras = context;
 	struct ras_cxl_poison_event ev;
 
+	RAS_TRACE_ENTRY();
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
 	get_timestamp(s, record, ras, (char *)&ev.timestamp, sizeof(ev.timestamp));
-	if (trace_seq_printf(s, "%s ", ev.timestamp) <= 0)
+	if (trace_seq_printf(s, "%s ", ev.timestamp) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.memdev = tep_get_field_raw(s, event, "memdev",
 				      record, &len, 1);
-	if (!ev.memdev)
+	if (!ev.memdev) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "memdev:%s ", ev.memdev) <= 0)
+	}
+	if (trace_seq_printf(s, "memdev:%s ", ev.memdev) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.host = tep_get_field_raw(s, event, "host",
 				    record, &len, 1);
-	if (!ev.host)
+	if (!ev.host) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "host:%s ", ev.host) <= 0)
+	}
+	if (trace_seq_printf(s, "host:%s ", ev.host) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.serial = val;
-	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)ev.serial) <= 0)
+	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)ev.serial) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "trace_type", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "trace_type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	switch (val) {
 	case CXL_POISON_TRACE_LIST:
 		ev.trace_type = "List";
@@ -173,49 +205,77 @@ int ras_cxl_poison_event_handler(struct trace_seq *s,
 	default:
 		ev.trace_type = "Invalid";
 	}
-	if (trace_seq_printf(s, "trace_type:%s ", ev.trace_type) <= 0)
+	if (trace_seq_printf(s, "trace_type:%s ", ev.trace_type) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.region = tep_get_field_raw(s, event, "region",
 				      record, &len, 1);
-	if (!ev.region)
+	if (!ev.region) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "region:%s ", ev.region) <= 0)
+	}
+	if (trace_seq_printf(s, "region:%s ", ev.region) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.uuid = tep_get_field_raw(s, event, "uuid",
 				    record, &len, 1);
-	if (!ev.uuid)
+	if (!ev.uuid) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "region_uuid:%s ", ev.uuid) <= 0)
+	}
+	if (trace_seq_printf(s, "region_uuid:%s ", ev.uuid) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hpa", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hpa", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.hpa = val;
-	if (trace_seq_printf(s, "hpa:0x%llx ", (unsigned long long)ev.hpa) <= 0)
+	if (trace_seq_printf(s, "hpa:0x%llx ", (unsigned long long)ev.hpa) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hpa_alias0", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hpa_alias0", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.hpa_alias0 = val;
-	if (trace_seq_printf(s, "hpa_alias0:0x%llx ", (unsigned long long)ev.hpa_alias0) <= 0)
+	if (trace_seq_printf(s, "hpa_alias0:0x%llx ", (unsigned long long)ev.hpa_alias0) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "dpa", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "dpa", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.dpa = val;
-	if (trace_seq_printf(s, "dpa:0x%llx ", (unsigned long long)ev.dpa) <= 0)
+	if (trace_seq_printf(s, "dpa:0x%llx ", (unsigned long long)ev.dpa) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "dpa_length", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "dpa_length", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.dpa_length = val;
-	if (trace_seq_printf(s, "dpa_length:0x%x ", ev.dpa_length) <= 0)
+	if (trace_seq_printf(s, "dpa_length:0x%x ", ev.dpa_length) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "source", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "source", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	switch (val) {
 	case CXL_POISON_SOURCE_UNKNOWN:
 		ev.source = "Unknown";
@@ -235,26 +295,36 @@ int ras_cxl_poison_event_handler(struct trace_seq *s,
 	default:
 		ev.source = "Invalid";
 	}
-	if (trace_seq_printf(s, "source:%s ", ev.source) <= 0)
+	if (trace_seq_printf(s, "source:%s ", ev.source) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.flags = val;
-	if (trace_seq_printf(s, "flags:%d ", ev.flags) <= 0)
+	if (trace_seq_printf(s, "flags:%d ", ev.flags) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	if (ev.flags & CXL_POISON_FLAG_OVERFLOW) {
-		if (tep_get_field_val(s,  event, "overflow_ts", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "overflow_ts", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		convert_timestamp(val, ev.overflow_ts, sizeof(ev.overflow_ts));
 	} else {
 		strscpy(ev.overflow_ts, "1970-01-01 00:00:00 +0000",
 			sizeof(ev.overflow_ts));
 	}
 
-	if (trace_seq_printf(s, "overflow timestamp:%s\n", ev.overflow_ts) <= 0)
+	if (trace_seq_printf(s, "overflow timestamp:%s\n", ev.overflow_ts) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	/* Insert data into the SGBD */
 #ifdef HAVE_SQLITE3
@@ -266,6 +336,7 @@ int ras_cxl_poison_event_handler(struct trace_seq *s,
 	ras_report_cxl_poison_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -334,11 +405,15 @@ static int decode_cxl_error_status(struct trace_seq *s, uint32_t status,
 {
 	int i;
 
+	RAS_TRACE_ENTRY();
 	for (i = 0; i < num_elems; i++) {
 		if (status & cxl_error_list[i].bit)
-			if (trace_seq_printf(s, "\'%s\' ", cxl_error_list[i].error) <= 0)
+			if (trace_seq_printf(s, "\'%s\' ", cxl_error_list[i].error) <= 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 	}
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -351,58 +426,89 @@ int ras_cxl_aer_ue_event_handler(struct trace_seq *s,
 	struct ras_events *ras = context;
 	struct ras_cxl_aer_ue_event ev;
 
+	RAS_TRACE_ENTRY();
 	memset(&ev, 0, sizeof(ev));
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_CRIT]);
 	get_timestamp(s, record, ras, (char *)&ev.timestamp, sizeof(ev.timestamp));
-	if (trace_seq_printf(s, "%s ", ev.timestamp) <= 0)
+	if (trace_seq_printf(s, "%s ", ev.timestamp) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.memdev = tep_get_field_raw(s, event, "memdev",
 				      record, &len, 1);
-	if (!ev.memdev)
+	if (!ev.memdev) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "memdev:%s ", ev.memdev) <= 0)
+	}
+	if (trace_seq_printf(s, "memdev:%s ", ev.memdev) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.host = tep_get_field_raw(s, event, "host",
 				    record, &len, 1);
-	if (!ev.host)
+	if (!ev.host) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "host:%s ", ev.host) <= 0)
+	}
+	if (trace_seq_printf(s, "host:%s ", ev.host) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.serial = val;
-	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)ev.serial) <= 0)
+	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)ev.serial) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "status", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "status", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.error_status = val;
 
-	if (trace_seq_printf(s, "error status:") <= 0)
+	if (trace_seq_printf(s, "error status:") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (decode_cxl_error_status(s, ev.error_status,
-				    cxl_aer_ue, ARRAY_SIZE(cxl_aer_ue)) < 0)
+				    cxl_aer_ue, ARRAY_SIZE(cxl_aer_ue)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "first_error", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "first_error", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.first_error = val;
 
-	if (trace_seq_printf(s, "first error:") <= 0)
+	if (trace_seq_printf(s, "first error:") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (decode_cxl_error_status(s, ev.first_error,
-				    cxl_aer_ue, ARRAY_SIZE(cxl_aer_ue)) < 0)
+				    cxl_aer_ue, ARRAY_SIZE(cxl_aer_ue)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.header_log = tep_get_field_raw(s, event, "header_log",
 					  record, &len, 1);
-	if (!ev.header_log)
+	if (!ev.header_log) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "header log:\n") <= 0)
+	}
+	if (trace_seq_printf(s, "header log:\n") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	for (i = 0; i < CXL_HEADERLOG_SIZE_U32; i++) {
 		if (trace_seq_printf(s, "%08x ", ev.header_log[i]) <= 0)
 			break;
@@ -414,8 +520,10 @@ int ras_cxl_aer_ue_event_handler(struct trace_seq *s,
 		 */
 		ev.header_log[i] = htobe32(ev.header_log[i]);
 	}
-	if (i < CXL_HEADERLOG_SIZE_U32)
+	if (i < CXL_HEADERLOG_SIZE_U32) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	/* Insert data into the SGBD */
 #ifdef HAVE_SQLITE3
@@ -427,6 +535,7 @@ int ras_cxl_aer_ue_event_handler(struct trace_seq *s,
 	ras_report_cxl_aer_ue_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -439,39 +548,60 @@ int ras_cxl_aer_ce_event_handler(struct trace_seq *s,
 	struct ras_events *ras = context;
 	struct ras_cxl_aer_ce_event ev;
 
+	RAS_TRACE_ENTRY();
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
 	get_timestamp(s, record, ras, (char *)&ev.timestamp, sizeof(ev.timestamp));
-	if (trace_seq_printf(s, "%s ", ev.timestamp) <= 0)
+	if (trace_seq_printf(s, "%s ", ev.timestamp) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.memdev = tep_get_field_raw(s, event, "memdev",
 				      record, &len, 1);
-	if (!ev.memdev)
+	if (!ev.memdev) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "memdev:%s ", ev.memdev) <= 0)
+	}
+	if (trace_seq_printf(s, "memdev:%s ", ev.memdev) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.host = tep_get_field_raw(s, event, "host",
 				    record, &len, 1);
-	if (!ev.host)
+	if (!ev.host) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "host:%s ", ev.host) <= 0)
+	}
+	if (trace_seq_printf(s, "host:%s ", ev.host) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.serial = val;
-	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)ev.serial) <= 0)
+	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)ev.serial) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "status", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "status", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.error_status = val;
-	if (trace_seq_printf(s, "error status:") <= 0)
+	if (trace_seq_printf(s, "error status:") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (decode_cxl_error_status(s, ev.error_status,
-				    cxl_aer_ce, ARRAY_SIZE(cxl_aer_ce)) < 0)
+				    cxl_aer_ce, ARRAY_SIZE(cxl_aer_ce)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	/* Insert data into the SGBD */
 #ifdef HAVE_SQLITE3
@@ -483,6 +613,7 @@ int ras_cxl_aer_ce_event_handler(struct trace_seq *s,
 	ras_report_cxl_aer_ce_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -499,19 +630,25 @@ enum cxl_event_log_type {
 
 static char *cxl_event_log_type_str(uint32_t log_type)
 {
+	RAS_TRACE_ENTRY();
 	switch (log_type) {
 	case CXL_EVENT_TYPE_INFO:
+		RAS_TRACE_EXIT(0);
 		return "Informational";
 	case CXL_EVENT_TYPE_WARN:
+		RAS_TRACE_EXIT(0);
 		return "Warning";
 	case CXL_EVENT_TYPE_FAIL:
+		RAS_TRACE_EXIT(0);
 		return "Failure";
 	case CXL_EVENT_TYPE_FATAL:
+		RAS_TRACE_EXIT(0);
 		return "Fatal";
 	default:
 		break;
 	}
 
+	RAS_TRACE_EXIT(0);
 	return "Unknown";
 }
 
@@ -524,52 +661,79 @@ int ras_cxl_overflow_event_handler(struct trace_seq *s,
 	struct ras_events *ras = context;
 	struct ras_cxl_overflow_event ev;
 
+	RAS_TRACE_ENTRY();
 	memset(&ev, 0, sizeof(ev));
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
 	get_timestamp(s, record, ras, (char *)&ev.timestamp, sizeof(ev.timestamp));
-	if (trace_seq_printf(s, "%s ", ev.timestamp) <= 0)
+	if (trace_seq_printf(s, "%s ", ev.timestamp) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.memdev = tep_get_field_raw(s, event, "memdev", record, &len, 1);
-	if (!ev.memdev)
+	if (!ev.memdev) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "memdev:%s ", ev.memdev) <= 0)
+	}
+	if (trace_seq_printf(s, "memdev:%s ", ev.memdev) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.host = tep_get_field_raw(s, event, "host", record, &len, 1);
-	if (!ev.host)
+	if (!ev.host) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "host:%s ", ev.host) <= 0)
+	}
+	if (trace_seq_printf(s, "host:%s ", ev.host) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.serial = val;
-	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)ev.serial) <= 0)
+	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)ev.serial) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "log", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "log", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.log_type = cxl_event_log_type_str(val);
-	if (trace_seq_printf(s, "log type:%s ", ev.log_type) <= 0)
+	if (trace_seq_printf(s, "log type:%s ", ev.log_type) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "count", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "count", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.count = val;
 
-	if (tep_get_field_val(s,  event, "first_ts", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "first_ts", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	convert_timestamp(val, ev.first_ts, sizeof(ev.first_ts));
 
-	if (tep_get_field_val(s,  event, "last_ts", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "last_ts", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	convert_timestamp(val, ev.last_ts, sizeof(ev.last_ts));
 
 	if (ev.count) {
 		if (trace_seq_printf(s, "%u errors from %s to %s\n",
-				     ev.count, ev.first_ts, ev.last_ts) <= 0)
+				     ev.count, ev.first_ts, ev.last_ts) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 	/* Insert data into the SGBD */
 #ifdef HAVE_SQLITE3
@@ -581,6 +745,7 @@ int ras_cxl_overflow_event_handler(struct trace_seq *s,
 	ras_report_cxl_overflow_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -600,28 +765,38 @@ static int ras_cxl_print_component_id(struct trace_seq *s, uint8_t *comp_id,
 {
 	int i;
 
+	RAS_TRACE_ENTRY();
 	if (comp_id[0] & CXL_PLDM_COMPONENT_ID_ENTITY_VALID) {
-		if (trace_seq_printf(s, "PLDM Entity ID:") <= 0)
+		if (trace_seq_printf(s, "PLDM Entity ID:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		for (i = 1; i < 7; i++) {
-			if (trace_seq_printf(s, "%02x ", comp_id[i]) <= 0)
+			if (trace_seq_printf(s, "%02x ", comp_id[i]) <= 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 		}
 		if (entity_id)
 			memcpy(entity_id, &comp_id[1], CXL_PLDM_ENTITY_ID_LEN);
 	}
 
 	if (comp_id[0] & CXL_PLDM_COMPONENT_ID_RES_VALID) {
-		if (trace_seq_printf(s, "Resource ID:") <= 0)
+		if (trace_seq_printf(s, "Resource ID:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		for (i = 7; i < 11; i++) {
-			if (trace_seq_printf(s, "%02x ", comp_id[i]) <= 0)
+			if (trace_seq_printf(s, "%02x ", comp_id[i]) <= 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 		}
 		if (res_id)
 			memcpy(res_id, &comp_id[7], CXL_PLDM_RES_ID_LEN);
 	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -656,102 +831,162 @@ static int handle_ras_cxl_common_hdr(struct trace_seq *s,
 	unsigned long long val;
 	struct ras_events *ras = context;
 
+	RAS_TRACE_ENTRY();
 	get_timestamp(s, record, ras, (char *)&hdr->timestamp, sizeof(hdr->timestamp));
-	if (trace_seq_printf(s, "%s ", hdr->timestamp) <= 0)
+	if (trace_seq_printf(s, "%s ", hdr->timestamp) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	hdr->memdev = tep_get_field_raw(s, event, "memdev", record, &len, 1);
-	if (!hdr->memdev)
+	if (!hdr->memdev) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "memdev:%s ", hdr->memdev) <= 0)
+	}
+	if (trace_seq_printf(s, "memdev:%s ", hdr->memdev) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	hdr->host = tep_get_field_raw(s, event, "host", record, &len, 1);
-	if (!hdr->host)
+	if (!hdr->host) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "host:%s ", hdr->host) <= 0)
+	}
+	if (trace_seq_printf(s, "host:%s ", hdr->host) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "serial", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	hdr->serial = val;
-	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)hdr->serial) <= 0)
+	if (trace_seq_printf(s, "serial:0x%llx ", (unsigned long long)hdr->serial) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "log", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "log", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	hdr->log_type = cxl_event_log_type_str(val);
-	if (trace_seq_printf(s, "log type:%s ", hdr->log_type) <= 0)
+	if (trace_seq_printf(s, "log type:%s ", hdr->log_type) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	hdr->hdr_uuid = tep_get_field_raw(s, event, "hdr_uuid", record, &len, 1);
-	if (!hdr->hdr_uuid)
+	if (!hdr->hdr_uuid) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	hdr->hdr_uuid = uuid_be(hdr->hdr_uuid);
-	if (trace_seq_printf(s, "hdr_uuid:%s ", hdr->hdr_uuid) <= 0)
+	if (trace_seq_printf(s, "hdr_uuid:%s ", hdr->hdr_uuid) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hdr_flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hdr_flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	hdr->hdr_flags = val;
 	if (decode_cxl_event_flags(s, hdr->hdr_flags, cxl_hdr_flags,
-				   ARRAY_SIZE(cxl_hdr_flags)) < 0)
+				   ARRAY_SIZE(cxl_hdr_flags)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hdr_handle", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hdr_handle", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	hdr->hdr_handle = val;
-	if (trace_seq_printf(s, "hdr_handle:0x%x ", hdr->hdr_handle) <= 0)
+	if (trace_seq_printf(s, "hdr_handle:0x%x ", hdr->hdr_handle) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hdr_related_handle", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hdr_related_handle", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	hdr->hdr_related_handle = val;
-	if (trace_seq_printf(s, "hdr_related_handle:0x%x ", hdr->hdr_related_handle) <= 0)
+	if (trace_seq_printf(s, "hdr_related_handle:0x%x ", hdr->hdr_related_handle) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "hdr_timestamp", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "hdr_timestamp", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	convert_timestamp(val, hdr->hdr_timestamp, sizeof(hdr->hdr_timestamp));
-	if (trace_seq_printf(s, "hdr_timestamp:%s ", hdr->hdr_timestamp) <= 0)
+	if (trace_seq_printf(s, "hdr_timestamp:%s ", hdr->hdr_timestamp) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "hdr_length", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "hdr_length", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	hdr->hdr_length = val;
-	if (trace_seq_printf(s, "hdr_length:%u ", hdr->hdr_length) <= 0)
+	if (trace_seq_printf(s, "hdr_length:%u ", hdr->hdr_length) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "hdr_maint_op_class", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "hdr_maint_op_class", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	hdr->hdr_maint_op_class = val;
-	if (trace_seq_printf(s, "hdr_maint_op_class:%u ", hdr->hdr_maint_op_class) <= 0)
+	if (trace_seq_printf(s, "hdr_maint_op_class:%u ", hdr->hdr_maint_op_class) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	if (hdr->hdr_flags & CXL_EVENT_RECORD_FLAG_MAINT_OP_SUB_CLASS_VALID) {
-		if (tep_get_field_val(s,  event, "hdr_maint_op_sub_class", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "hdr_maint_op_sub_class", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		hdr->hdr_maint_op_sub_class = val;
-		if (trace_seq_printf(s, "hdr_maint_op_sub_class:%u ", hdr->hdr_maint_op_sub_class) <= 0)
+		if (trace_seq_printf(s, "hdr_maint_op_sub_class:%u ", hdr->hdr_maint_op_sub_class) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (hdr->hdr_flags & CXL_EVENT_RECORD_FLAG_LD_ID_VALID) {
-		if (tep_get_field_val(s,  event, "hdr_ld_id", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "hdr_ld_id", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		hdr->hdr_ld_id = val;
-		if (trace_seq_printf(s, "hdr_ld_id:0x%x ", hdr->hdr_ld_id) <= 0)
+		if (trace_seq_printf(s, "hdr_ld_id:0x%x ", hdr->hdr_ld_id) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (hdr->hdr_flags & CXL_EVENT_RECORD_FLAG_HEAD_ID_VALID) {
-		if (tep_get_field_val(s,  event, "hdr_head_id", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "hdr_head_id", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		hdr->hdr_head_id = val;
-		if (trace_seq_printf(s, "hdr_head_id:0x%x ", hdr->hdr_head_id) <= 0)
+		if (trace_seq_printf(s, "hdr_head_id:0x%x ", hdr->hdr_head_id) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -764,18 +999,25 @@ int ras_cxl_generic_event_handler(struct trace_seq *s,
 	struct ras_cxl_generic_event ev;
 	const uint8_t *buf;
 
+	RAS_TRACE_ENTRY();
 	memset(&ev, 0, sizeof(ev));
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
-	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0)
+	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.data = tep_get_field_raw(s, event, "data", record, &len, 1);
-	if (!ev.data)
+	if (!ev.data) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	i = 0;
 	buf = ev.data;
-	if (trace_seq_printf(s, "\ndata:\n  %08x: ", i) <= 0)
+	if (trace_seq_printf(s, "\ndata:\n  %08x: ", i) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	for (i = 0; i < CXL_EVENT_RECORD_DATA_LENGTH; i += 4) {
 		if (i > 0 && ((i % 16) == 0))
 			if (trace_seq_printf(s, "\n  %08x: ", i) <= 0)
@@ -795,6 +1037,7 @@ int ras_cxl_generic_event_handler(struct trace_seq *s,
 	ras_report_cxl_generic_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -880,154 +1123,235 @@ int ras_cxl_general_media_event_handler(struct trace_seq *s,
 	struct ras_events *ras = context;
 	struct ras_cxl_general_media_event ev;
 
+	RAS_TRACE_ENTRY();
 	memset(&ev, 0, sizeof(ev));
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
-	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0)
+	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "dpa", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "dpa", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.dpa = val;
-	if (trace_seq_printf(s, "dpa:0x%llx ", (unsigned long long)ev.dpa) <= 0)
+	if (trace_seq_printf(s, "dpa:0x%llx ", (unsigned long long)ev.dpa) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "dpa_flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "dpa_flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.dpa_flags = val;
-	if (trace_seq_printf(s, "dpa_flags:") <= 0)
+	if (trace_seq_printf(s, "dpa_flags:") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (decode_cxl_event_flags(s, ev.dpa_flags, cxl_dpa_flags, ARRAY_SIZE(cxl_dpa_flags)) < 0)
+	}
+	if (decode_cxl_event_flags(s, ev.dpa_flags, cxl_dpa_flags, ARRAY_SIZE(cxl_dpa_flags)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "descriptor", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "descriptor", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.descriptor = val;
-	if (trace_seq_printf(s, "descriptor:") <= 0)
+	if (trace_seq_printf(s, "descriptor:") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (decode_cxl_event_flags(s, ev.descriptor, cxl_gmer_event_desc_flags,
-				   ARRAY_SIZE(cxl_gmer_event_desc_flags)) < 0)
+				   ARRAY_SIZE(cxl_gmer_event_desc_flags)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "type", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.type = val;
 	if (trace_seq_printf(s, "memory_event_type:%s ",
 			     get_cxl_type_str(cxl_gmer_mem_event_type,
-					      ARRAY_SIZE(cxl_gmer_mem_event_type), ev.type)) <= 0)
+					      ARRAY_SIZE(cxl_gmer_mem_event_type), ev.type)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "sub_type", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "sub_type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.sub_type = val;
 	if (trace_seq_printf(s, "memory_event_sub_type:%s ",
 			     get_cxl_type_str(cxl_mem_event_sub_type,
 					      ARRAY_SIZE(cxl_mem_event_sub_type),
-					      ev.sub_type)) <= 0)
+					      ev.sub_type)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "transaction_type", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "transaction_type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.transaction_type = val;
 	if (trace_seq_printf(s, "transaction_type:%s ",
 			     get_cxl_type_str(cxl_gmer_trans_type,
 					      ARRAY_SIZE(cxl_gmer_trans_type),
-					      ev.transaction_type)) <= 0)
+					      ev.transaction_type)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hpa", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hpa", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.hpa = val;
-	if (trace_seq_printf(s, "hpa:0x%llx ", (unsigned long long)ev.hpa) <= 0)
+	if (trace_seq_printf(s, "hpa:0x%llx ", (unsigned long long)ev.hpa) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hpa_alias0", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hpa_alias0", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.hpa_alias0 = val;
-	if (trace_seq_printf(s, "hpa_alias0:0x%llx ", (unsigned long long)ev.hpa_alias0) <= 0)
+	if (trace_seq_printf(s, "hpa_alias0:0x%llx ", (unsigned long long)ev.hpa_alias0) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.region = tep_get_field_raw(s, event, "region_name", record, &len, 1);
-	if (!ev.region)
+	if (!ev.region) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "region:%s ", ev.region) <= 0)
+	}
+	if (trace_seq_printf(s, "region:%s ", ev.region) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.region_uuid = tep_get_field_raw(s, event, "region_uuid",
 					   record, &len, 1);
-	if (!ev.region_uuid)
+	if (!ev.region_uuid) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.region_uuid = uuid_be(ev.region_uuid);
-	if (trace_seq_printf(s, "region_uuid:%s ", ev.region_uuid) <= 0)
+	if (trace_seq_printf(s, "region_uuid:%s ", ev.region_uuid) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "validity_flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "validity_flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.validity_flags = val;
 
 	if (ev.validity_flags & CXL_GMER_VALID_CHANNEL) {
-		if (tep_get_field_val(s,  event, "channel", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "channel", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.channel = val;
-		if (trace_seq_printf(s, "channel:%u ", ev.channel) <= 0)
+		if (trace_seq_printf(s, "channel:%u ", ev.channel) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_GMER_VALID_RANK) {
-		if (tep_get_field_val(s,  event, "rank", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "rank", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.rank = val;
-		if (trace_seq_printf(s, "rank:%u ", ev.rank) <= 0)
+		if (trace_seq_printf(s, "rank:%u ", ev.rank) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_GMER_VALID_DEVICE) {
-		if (tep_get_field_val(s,  event, "device", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "device", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.device = val;
-		if (trace_seq_printf(s, "device:%x ", ev.device) <= 0)
+		if (trace_seq_printf(s, "device:%x ", ev.device) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_GMER_VALID_COMPONENT) {
 		ev.comp_id = tep_get_field_raw(s, event, "comp_id", record, &len, 1);
-		if (!ev.comp_id)
+		if (!ev.comp_id) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
-		if (trace_seq_printf(s, "comp_id:") <= 0)
+		}
+		if (trace_seq_printf(s, "comp_id:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		for (i = 0; i < CXL_EVENT_GEN_MED_COMP_ID_SIZE; i++) {
 			if (trace_seq_printf(s, "%02x ", ev.comp_id[i]) <= 0)
 				break;
 		}
 
 		if (ev.validity_flags & CXL_GMER_VALID_COMPONENT_ID_FORMAT) {
-			if (trace_seq_printf(s, "comp_id_pldm_valid_flags:") <= 0)
+			if (trace_seq_printf(s, "comp_id_pldm_valid_flags:") <= 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 			if (decode_cxl_event_flags(s, ev.comp_id[0], cxl_pldm_comp_id_flags,
-						   ARRAY_SIZE(cxl_pldm_comp_id_flags)) < 0)
+						   ARRAY_SIZE(cxl_pldm_comp_id_flags)) < 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 
 			rc = ras_cxl_print_component_id(s, ev.comp_id, ev.entity_id, ev.res_id);
-			if (rc)
+			if (rc) {
+				RAS_TRACE_EXIT(rc);
 				return rc;
+			}
 		}
 	}
 
 	if (ev.descriptor & CXL_GMER_EVT_DESC_THRESHOLD_EVENT) {
-		if (tep_get_field_val(s,  event, "cme_threshold_ev_flags", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "cme_threshold_ev_flags", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.cme_threshold_ev_flags = val;
-		if (trace_seq_printf(s, "Advanced Programmable CME threshold Event Flags:") <= 0)
+		if (trace_seq_printf(s, "Advanced Programmable CME threshold Event Flags:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		if (decode_cxl_event_flags(s, ev.cme_threshold_ev_flags,
 					   cxl_cme_threshold_ev_flags,
-					   ARRAY_SIZE(cxl_cme_threshold_ev_flags)) < 0)
+					   ARRAY_SIZE(cxl_cme_threshold_ev_flags)) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 
-		if (tep_get_field_val(s,  event, "cme_count", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "cme_count", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.cme_count = val;
-		if (trace_seq_printf(s, "Corrected Memory Error Count:%u ", ev.cme_count) <= 0)
+		if (trace_seq_printf(s, "Corrected Memory Error Count:%u ", ev.cme_count) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	/* Insert data into the SGBD */
@@ -1040,6 +1364,7 @@ int ras_cxl_general_media_event_handler(struct trace_seq *s,
 	ras_report_cxl_general_media_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -1079,162 +1404,247 @@ int ras_cxl_dram_event_handler(struct trace_seq *s,
 	struct ras_events *ras = context;
 	struct ras_cxl_dram_event ev;
 
+	RAS_TRACE_ENTRY();
 	memset(&ev, 0, sizeof(ev));
 	trace_seq_printf(s, "%s ", loglevel_str[LOGLEVEL_ERR]);
-	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0)
+	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "dpa", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "dpa", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.dpa = val;
-	if (trace_seq_printf(s, "dpa:0x%llx ", (unsigned long long)ev.dpa) <= 0)
+	if (trace_seq_printf(s, "dpa:0x%llx ", (unsigned long long)ev.dpa) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "dpa_flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "dpa_flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.dpa_flags = val;
-	if (trace_seq_printf(s, "dpa_flags:") <= 0)
+	if (trace_seq_printf(s, "dpa_flags:") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (decode_cxl_event_flags(s, ev.dpa_flags, cxl_dpa_flags,
-				   ARRAY_SIZE(cxl_dpa_flags)) < 0)
+				   ARRAY_SIZE(cxl_dpa_flags)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "descriptor", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "descriptor", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.descriptor = val;
-	if (trace_seq_printf(s, "descriptor:") <= 0)
+	if (trace_seq_printf(s, "descriptor:") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (decode_cxl_event_flags(s, ev.descriptor, cxl_gmer_event_desc_flags,
-				   ARRAY_SIZE(cxl_gmer_event_desc_flags)) < 0)
+				   ARRAY_SIZE(cxl_gmer_event_desc_flags)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "type", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.type = val;
 	if (trace_seq_printf(s, "memory_event_type:%s ",
 			     get_cxl_type_str(cxl_der_mem_event_type,
 					      ARRAY_SIZE(cxl_der_mem_event_type),
-					      ev.type)) <= 0)
+					      ev.type)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "sub_type", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "sub_type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.sub_type = val;
 	if (trace_seq_printf(s, "memory_event_sub_type:%s ",
 			     get_cxl_type_str(cxl_mem_event_sub_type,
 					      ARRAY_SIZE(cxl_mem_event_sub_type),
-					      ev.sub_type)) <= 0)
+					      ev.sub_type)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "transaction_type", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "transaction_type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.transaction_type = val;
 	if (trace_seq_printf(s, "transaction_type:%s ",
 			     get_cxl_type_str(cxl_gmer_trans_type,
 					      ARRAY_SIZE(cxl_gmer_trans_type),
-					      ev.transaction_type)) <= 0)
+					      ev.transaction_type)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hpa", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hpa", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.hpa = val;
-	if (trace_seq_printf(s, "hpa:0x%llx ", (unsigned long long)ev.hpa) <= 0)
+	if (trace_seq_printf(s, "hpa:0x%llx ", (unsigned long long)ev.hpa) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "hpa_alias0", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "hpa_alias0", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.hpa_alias0 = val;
-	if (trace_seq_printf(s, "hpa_alias0:0x%llx ", (unsigned long long)ev.hpa_alias0) <= 0)
+	if (trace_seq_printf(s, "hpa_alias0:0x%llx ", (unsigned long long)ev.hpa_alias0) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.region = tep_get_field_raw(s, event, "region_name", record, &len, 1);
-	if (!ev.region)
+	if (!ev.region) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
-	if (trace_seq_printf(s, "region:%s ", ev.region) <= 0)
+	}
+	if (trace_seq_printf(s, "region:%s ", ev.region) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	ev.region_uuid = tep_get_field_raw(s, event, "region_uuid",
 					   record, &len, 1);
-	if (!ev.region_uuid)
+	if (!ev.region_uuid) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.region_uuid = uuid_be(ev.region_uuid);
-	if (trace_seq_printf(s, "region_uuid:%s ", ev.region_uuid) <= 0)
+	if (trace_seq_printf(s, "region_uuid:%s ", ev.region_uuid) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "validity_flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "validity_flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.validity_flags = val;
 
 	if (ev.validity_flags & CXL_DER_VALID_CHANNEL) {
-		if (tep_get_field_val(s,  event, "channel", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "channel", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.channel = val;
-		if (trace_seq_printf(s, "channel:%u ", ev.channel) <= 0)
+		if (trace_seq_printf(s, "channel:%u ", ev.channel) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_DER_VALID_SUB_CHANNEL) {
-		if (tep_get_field_val(s,  event, "sub_channel", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "sub_channel", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.sub_channel = val;
-		if (trace_seq_printf(s, "sub_channel:%u ", ev.sub_channel) <= 0)
+		if (trace_seq_printf(s, "sub_channel:%u ", ev.sub_channel) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_DER_VALID_RANK) {
-		if (tep_get_field_val(s,  event, "rank", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "rank", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.rank = val;
-		if (trace_seq_printf(s, "rank:%u ", ev.rank) <= 0)
+		if (trace_seq_printf(s, "rank:%u ", ev.rank) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_DER_VALID_NIBBLE) {
-		if (tep_get_field_val(s,  event, "nibble_mask", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "nibble_mask", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.nibble_mask = val;
-		if (trace_seq_printf(s, "nibble_mask:%u ", ev.nibble_mask) <= 0)
+		if (trace_seq_printf(s, "nibble_mask:%u ", ev.nibble_mask) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_DER_VALID_BANK_GROUP) {
-		if (tep_get_field_val(s,  event, "bank_group", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "bank_group", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.bank_group = val;
-		if (trace_seq_printf(s, "bank_group:%u ", ev.bank_group) <= 0)
+		if (trace_seq_printf(s, "bank_group:%u ", ev.bank_group) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_DER_VALID_BANK) {
-		if (tep_get_field_val(s,  event, "bank", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "bank", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.bank = val;
-		if (trace_seq_printf(s, "bank:%u ", ev.bank) <= 0)
+		if (trace_seq_printf(s, "bank:%u ", ev.bank) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_DER_VALID_ROW) {
-		if (tep_get_field_val(s,  event, "row", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "row", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.row = val;
-		if (trace_seq_printf(s, "row:%u ", ev.row) <= 0)
+		if (trace_seq_printf(s, "row:%u ", ev.row) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_DER_VALID_COLUMN) {
-		if (tep_get_field_val(s,  event, "column", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "column", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.column = val;
-		if (trace_seq_printf(s, "column:%u ", ev.column) <= 0)
+		if (trace_seq_printf(s, "column:%u ", ev.column) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_DER_VALID_CORRECTION_MASK) {
 		ev.cor_mask = tep_get_field_raw(s, event, "cor_mask", record, &len, 1);
-		if (!ev.cor_mask)
+		if (!ev.cor_mask) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
-		if (trace_seq_printf(s, "correction_mask:") <= 0)
+		}
+		if (trace_seq_printf(s, "correction_mask:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		for (i = 0; i < CXL_EVENT_DER_CORRECTION_MASK_SIZE; i++) {
 			if (trace_seq_printf(s, "%02x ", ev.cor_mask[i]) <= 0)
 				break;
@@ -1250,44 +1660,64 @@ int ras_cxl_dram_event_handler(struct trace_seq *s,
 
 	if (ev.validity_flags & CXL_DER_VALID_COMPONENT_ID) {
 		ev.comp_id = tep_get_field_raw(s, event, "comp_id", record, &len, 1);
-		if (!ev.comp_id)
+		if (!ev.comp_id) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
-		if (trace_seq_printf(s, "comp_id:") <= 0)
+		}
+		if (trace_seq_printf(s, "comp_id:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		for (i = 0; i < CXL_EVENT_GEN_MED_COMP_ID_SIZE; i++) {
 			if (trace_seq_printf(s, "%02x ", ev.comp_id[i]) <= 0)
 				break;
 		}
 
 		if (ev.validity_flags & CXL_DER_VALID_COMPONENT_ID_FORMAT) {
-			if (trace_seq_printf(s, "comp_id_pldm_valid_flags:") <= 0)
+			if (trace_seq_printf(s, "comp_id_pldm_valid_flags:") <= 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 			if (decode_cxl_event_flags(s, ev.comp_id[0], cxl_pldm_comp_id_flags,
-						   ARRAY_SIZE(cxl_pldm_comp_id_flags)) < 0)
+						   ARRAY_SIZE(cxl_pldm_comp_id_flags)) < 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 
 			rc = ras_cxl_print_component_id(s, ev.comp_id, ev.entity_id, ev.res_id);
-			if (rc)
+			if (rc) {
+				RAS_TRACE_EXIT(rc);
 				return rc;
+			}
 		}
 	}
 
 	if (ev.descriptor & CXL_GMER_EVT_DESC_THRESHOLD_EVENT) {
-		if (tep_get_field_val(s,  event, "cme_threshold_ev_flags", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "cme_threshold_ev_flags", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.cme_threshold_ev_flags = val;
-		if (trace_seq_printf(s, "Advanced Programmable CME threshold Event Flags:") <= 0)
+		if (trace_seq_printf(s, "Advanced Programmable CME threshold Event Flags:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		if (decode_cxl_event_flags(s, ev.cme_threshold_ev_flags,
 					   cxl_cme_threshold_ev_flags,
-					   ARRAY_SIZE(cxl_cme_threshold_ev_flags)) < 0)
+					   ARRAY_SIZE(cxl_cme_threshold_ev_flags)) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 
-		if (tep_get_field_val(s,  event, "cvme_count", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "cvme_count", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.cvme_count = val;
-		if (trace_seq_printf(s, "CVME Count:%u ", ev.cvme_count) <= 0)
+		if (trace_seq_printf(s, "CVME Count:%u ", ev.cvme_count) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	/* Insert data into the SGBD */
@@ -1300,6 +1730,7 @@ int ras_cxl_dram_event_handler(struct trace_seq *s,
 	ras_report_cxl_dram_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -1385,125 +1816,188 @@ int ras_cxl_memory_module_event_handler(struct trace_seq *s,
 	struct ras_events *ras = context;
 	struct ras_cxl_memory_module_event ev;
 
+	RAS_TRACE_ENTRY();
 	memset(&ev, 0, sizeof(ev));
-	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0)
+	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "event_type", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "event_type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.event_type = val;
 	if (trace_seq_printf(s, "event_type:%s ",
 			     get_cxl_type_str(cxl_dev_evt_type,
 					      ARRAY_SIZE(cxl_dev_evt_type),
-					      ev.event_type)) <= 0)
+					      ev.event_type)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "event_sub_type", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "event_sub_type", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.event_sub_type = val;
 	if (trace_seq_printf(s, "event_sub_type:%s ",
 			     get_cxl_type_str(cxl_dev_evt_sub_type,
 					      ARRAY_SIZE(cxl_dev_evt_sub_type),
-					      ev.event_sub_type)) <= 0)
+					      ev.event_sub_type)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "health_status", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "health_status", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.health_status = val;
-	if (trace_seq_printf(s, "health_status:") <= 0)
+	if (trace_seq_printf(s, "health_status:") <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (decode_cxl_event_flags(s, ev.health_status, cxl_health_status,
-				   ARRAY_SIZE(cxl_health_status)) < 0)
+				   ARRAY_SIZE(cxl_health_status)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "media_status", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "media_status", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.media_status = val;
 	if (trace_seq_printf(s, "media_status:%s ",
 			     get_cxl_type_str(cxl_media_status,
 					      ARRAY_SIZE(cxl_media_status),
-					      ev.media_status)) <= 0)
+					      ev.media_status)) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "add_status", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "add_status", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.add_status = val;
 	if (trace_seq_printf(s, "as_life_used:%s ",
 			     get_cxl_type_str(cxl_two_bit_status,
 					      ARRAY_SIZE(cxl_two_bit_status),
-			     CXL_DHI_AS_LIFE_USED(ev.add_status))) <= 0)
+			     CXL_DHI_AS_LIFE_USED(ev.add_status))) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (trace_seq_printf(s, "as_dev_temp:%s ",
 			     get_cxl_type_str(cxl_two_bit_status,
 					      ARRAY_SIZE(cxl_two_bit_status),
-			     CXL_DHI_AS_DEV_TEMP(ev.add_status))) <= 0)
+			     CXL_DHI_AS_DEV_TEMP(ev.add_status))) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (trace_seq_printf(s, "as_cor_vol_err_cnt:%s ",
 			     get_cxl_type_str(cxl_one_bit_status,
 					      ARRAY_SIZE(cxl_one_bit_status),
-			     CXL_DHI_AS_COR_VOL_ERR_CNT(ev.add_status))) <= 0)
+			     CXL_DHI_AS_COR_VOL_ERR_CNT(ev.add_status))) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (trace_seq_printf(s, "as_cor_per_err_cnt:%s ",
 			     get_cxl_type_str(cxl_one_bit_status,
 					      ARRAY_SIZE(cxl_one_bit_status),
-			     CXL_DHI_AS_COR_PER_ERR_CNT(ev.add_status))) <= 0)
+			     CXL_DHI_AS_COR_PER_ERR_CNT(ev.add_status))) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "life_used", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "life_used", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.life_used = val;
-	if (trace_seq_printf(s, "life_used:%u ", ev.life_used) <= 0)
+	if (trace_seq_printf(s, "life_used:%u ", ev.life_used) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "device_temp", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "device_temp", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.device_temp = val;
-	if (trace_seq_printf(s, "device_temp:%u ", ev.device_temp) <= 0)
+	if (trace_seq_printf(s, "device_temp:%u ", ev.device_temp) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "dirty_shutdown_cnt", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "dirty_shutdown_cnt", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.dirty_shutdown_cnt = val;
-	if (trace_seq_printf(s, "dirty_shutdown_cnt:%u ", ev.dirty_shutdown_cnt) <= 0)
+	if (trace_seq_printf(s, "dirty_shutdown_cnt:%u ", ev.dirty_shutdown_cnt) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "cor_vol_err_cnt", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "cor_vol_err_cnt", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.cor_vol_err_cnt = val;
-	if (trace_seq_printf(s, "cor_vol_err_cnt:%u ", ev.cor_vol_err_cnt) <= 0)
+	if (trace_seq_printf(s, "cor_vol_err_cnt:%u ", ev.cor_vol_err_cnt) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "cor_per_err_cnt", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "cor_per_err_cnt", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.cor_per_err_cnt = val;
-	if (trace_seq_printf(s, "cor_per_err_cnt:%u ", ev.cor_per_err_cnt) <= 0)
+	if (trace_seq_printf(s, "cor_per_err_cnt:%u ", ev.cor_per_err_cnt) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "validity_flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "validity_flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.validity_flags = val;
 
 	if (ev.validity_flags & CXL_MMER_VALID_COMPONENT_ID) {
 		ev.comp_id = tep_get_field_raw(s, event, "comp_id", record, &len, 1);
-		if (!ev.comp_id)
+		if (!ev.comp_id) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
-		if (trace_seq_printf(s, "comp_id:") <= 0)
+		}
+		if (trace_seq_printf(s, "comp_id:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		for (i = 0; i < CXL_EVENT_GEN_MED_COMP_ID_SIZE; i++) {
 			if (trace_seq_printf(s, "%02x ", ev.comp_id[i]) <= 0)
 				break;
 		}
 
 		if (ev.validity_flags & CXL_MMER_VALID_COMPONENT_ID_FORMAT) {
-			if (trace_seq_printf(s, "comp_id_pldm_valid_flags:") <= 0)
+			if (trace_seq_printf(s, "comp_id_pldm_valid_flags:") <= 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 			if (decode_cxl_event_flags(s, ev.comp_id[0], cxl_pldm_comp_id_flags,
-						   ARRAY_SIZE(cxl_pldm_comp_id_flags)) < 0)
+						   ARRAY_SIZE(cxl_pldm_comp_id_flags)) < 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 
 			rc = ras_cxl_print_component_id(s, ev.comp_id, ev.entity_id, ev.res_id);
-			if (rc)
+			if (rc) {
+				RAS_TRACE_EXIT(rc);
 				return rc;
+			}
 		}
 	}
 	/* Insert data into the SGBD */
@@ -1516,6 +2010,7 @@ int ras_cxl_memory_module_event_handler(struct trace_seq *s,
 	ras_report_cxl_memory_module_event(ras, &ev);
 #endif
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
 
@@ -1553,122 +2048,184 @@ int ras_cxl_memory_sparing_event_handler(struct trace_seq *s,
 	unsigned long long val;
 	struct ras_cxl_memory_sparing_event ev;
 
+	RAS_TRACE_ENTRY();
 	memset(&ev, 0, sizeof(ev));
-	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0)
+	if (handle_ras_cxl_common_hdr(s, record, event, context, &ev.hdr) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s, event, "flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s, event, "flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.flags = val;
-	if (trace_seq_printf(s, "flags:0x%x ", ev.flags) <= 0)
+	if (trace_seq_printf(s, "flags:0x%x ", ev.flags) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	if (decode_cxl_event_flags(s, ev.flags, cxl_mser_flags,
-				   ARRAY_SIZE(cxl_mser_flags)) < 0)
+				   ARRAY_SIZE(cxl_mser_flags)) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "result", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "result", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.result = val;
-	if (trace_seq_printf(s, "result:0x%x ", ev.result) <= 0)
+	if (trace_seq_printf(s, "result:0x%x ", ev.result) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
-	if (tep_get_field_val(s,  event, "validity_flags", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "validity_flags", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.validity_flags = val;
 
-	if (tep_get_field_val(s,  event, "res_avail", record, &val, 1) < 0)
+	if (tep_get_field_val(s,  event, "res_avail", record, &val, 1) < 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 	ev.res_avail = val;
-	if (trace_seq_printf(s, "spare resources available:%u ", ev.res_avail) <= 0)
+	if (trace_seq_printf(s, "spare resources available:%u ", ev.res_avail) <= 0) {
+		RAS_TRACE_EXIT(-1);
 		return -1;
+	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_CHANNEL) {
-		if (tep_get_field_val(s,  event, "channel", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "channel", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.channel = val;
-		if (trace_seq_printf(s, "channel:%u ", ev.channel) <= 0)
+		if (trace_seq_printf(s, "channel:%u ", ev.channel) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_SUB_CHANNEL) {
-		if (tep_get_field_val(s,  event, "sub_channel", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "sub_channel", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.sub_channel = val;
-		if (trace_seq_printf(s, "sub_channel:%u ", ev.sub_channel) <= 0)
+		if (trace_seq_printf(s, "sub_channel:%u ", ev.sub_channel) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_RANK) {
-		if (tep_get_field_val(s,  event, "rank", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "rank", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.rank = val;
-		if (trace_seq_printf(s, "rank:%u ", ev.rank) <= 0)
+		if (trace_seq_printf(s, "rank:%u ", ev.rank) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_NIBBLE) {
-		if (tep_get_field_val(s,  event, "nibble_mask", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "nibble_mask", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.nibble_mask = val;
-		if (trace_seq_printf(s, "nibble_mask:%u ", ev.nibble_mask) <= 0)
+		if (trace_seq_printf(s, "nibble_mask:%u ", ev.nibble_mask) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_BANK_GROUP) {
-		if (tep_get_field_val(s,  event, "bank_group", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "bank_group", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.bank_group = val;
-		if (trace_seq_printf(s, "bank_group:%u ", ev.bank_group) <= 0)
+		if (trace_seq_printf(s, "bank_group:%u ", ev.bank_group) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_BANK) {
-		if (tep_get_field_val(s,  event, "bank", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "bank", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.bank = val;
-		if (trace_seq_printf(s, "bank:%u ", ev.bank) <= 0)
+		if (trace_seq_printf(s, "bank:%u ", ev.bank) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_ROW) {
-		if (tep_get_field_val(s,  event, "row", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "row", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.row = val;
-		if (trace_seq_printf(s, "row:%u ", ev.row) <= 0)
+		if (trace_seq_printf(s, "row:%u ", ev.row) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_COLUMN) {
-		if (tep_get_field_val(s,  event, "column", record, &val, 1) < 0)
+		if (tep_get_field_val(s,  event, "column", record, &val, 1) < 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		ev.column = val;
-		if (trace_seq_printf(s, "column:%u ", ev.column) <= 0)
+		if (trace_seq_printf(s, "column:%u ", ev.column) <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 	}
 
 	if (ev.validity_flags & CXL_MSER_VALID_COMPONENT_ID) {
 		ev.comp_id = tep_get_field_raw(s, event, "comp_id", record, &len, 1);
-		if (!ev.comp_id)
+		if (!ev.comp_id) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
-		if (trace_seq_printf(s, "comp_id:") <= 0)
+		}
+		if (trace_seq_printf(s, "comp_id:") <= 0) {
+			RAS_TRACE_EXIT(-1);
 			return -1;
+		}
 		for (i = 0; i < CXL_EVENT_GEN_MED_COMP_ID_SIZE; i++) {
 			if (trace_seq_printf(s, "%02x ", ev.comp_id[i]) <= 0)
 				break;
 		}
 
 		if (ev.validity_flags & CXL_MSER_VALID_COMPONENT_ID_FORMAT) {
-			if (trace_seq_printf(s, "comp_id_pldm_valid_flags:") <= 0)
+			if (trace_seq_printf(s, "comp_id_pldm_valid_flags:") <= 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 			if (decode_cxl_event_flags(s, ev.comp_id[0], cxl_pldm_comp_id_flags,
-						   ARRAY_SIZE(cxl_pldm_comp_id_flags)) < 0)
+						   ARRAY_SIZE(cxl_pldm_comp_id_flags)) < 0) {
+				RAS_TRACE_EXIT(-1);
 				return -1;
+			}
 
 			rc = ras_cxl_print_component_id(s, ev.comp_id, ev.entity_id, ev.res_id);
-			if (rc)
+			if (rc) {
+				RAS_TRACE_EXIT(rc);
 				return rc;
+			}
 		}
 	}
 
+	RAS_TRACE_EXIT(0);
 	return 0;
 }
